@@ -41,6 +41,111 @@ body {
   color: #0000FF;
 }
 
+/* ============================================
+   CURSOR / BLINK ANIMATIONS
+   - .blink = always blinks (fast, 0.5s)
+   - .blink-slow = always blinks (slow, 0.8s)
+   - .blink-hover = solid, blinks only on hover
+   ============================================ */
+
+.blink {
+  animation: blink 0.5s step-end infinite;
+}
+
+.blink-slow {
+  animation: blink-slow 0.7s step-end infinite;
+}
+
+.blink-hover {
+  opacity: 1;
+}
+
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes blink-slow {
+  0%, 60% { opacity: 1; }
+  60%, 100% { opacity: 0; }
+}
+
+@keyframes fadeIn {
+  0% { opacity: 0; }
+  100% { opacity: 1; }
+}
+
+/* ============================================
+   NAV CLI ITEMS
+   ============================================ */
+
+.nav-cli {
+  transition: none;
+}
+
+.nav-cli:hover {
+  background-color: #c0c0c0;
+  color: #000080 !important;
+}
+
+/* Cursor inherits hover color */
+.nav-cli:hover .blink,
+.nav-cli:hover .blink-hover {
+  color: inherit;
+}
+
+/* Blink on hover for idle cursor */
+.nav-cli:hover .blink-hover {
+  animation: blink 0.5s step-end infinite;
+}
+
+/* ============================================
+   WIN95 BUTTONS
+   ============================================ */
+
+.win-btn:hover {
+  filter: brightness(1.05);
+}
+
+.win-btn:active {
+  box-shadow: inset 1px 1px 0 #0a0a0a, inset -1px -1px 0 #ffffff, inset 2px 2px 0 #808080, inset -2px -2px 0 #dfdfdf !important;
+}
+
+/* ============================================
+   SOCIAL ICONS
+   ============================================ */
+
+.social-icon {
+  color: rgba(255,255,255,0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px;
+  border: 1px solid transparent;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.social-icon svg {
+  width: 24px;
+  height: 24px;
+}
+
 .social-icon:hover {
-  color: rgba(255,255,255,1) !important;
+  color: #0000FF;
+  background-color: #fff;
+  border-color: #fff;
+}
+
+/* ============================================
+   NAV CURSOR (hidden by default, visible on hover/active)
+   ============================================ */
+
+.nav-cursor {
+  opacity: 0;
+}
+
+.nav-cli:hover .nav-cursor {
+  opacity: 1;
+  animation: blink 0.5s step-end infinite;
 }

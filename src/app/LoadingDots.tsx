@@ -1,65 +1,59 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
-export default function LoadingDots() {
-  const [dots, setDots] = useState(0);
-  const [maxDots, setMaxDots] = useState(20);
-  const containerRef = useRef<HTMLDivElement>(null);
-  const textRef = useRef<HTMLSpanElement>(null);
+interface LoadingDotsProps {
+  onComplete?: () => void;
+}
 
-  useEffect(() => {
-    const calculateMaxDots = () => {
-      if (!containerRef.current || !textRef.current) return;
-      
-      const containerWidth = containerRef.current.offsetWidth;
-      const loadingTextWidth = textRef.current.offsetWidth;
-      const availableWidth = containerWidth - loadingTextWidth;
-      
-      // Estimate dot width (roughly 0.6em for monospace)
-      const fontSize = parseFloat(getComputedStyle(containerRef.current).fontSize);
-      const dotWidth = fontSize * 0.6;
-      
-      const newMaxDots = Math.floor(availableWidth / dotWidth);
-      setMaxDots(Math.max(5, newMaxDots));
-    };
+export default function LoadingDots({ onComplete }: LoadingDotsProps) {
+  const [progress, setProgress] = useState(0);
+  const [completed, setCompleted] = useState(false);
 
-    calculateMaxDots();
-    window.addEventListener('resize', calculateMaxDots);
-    return () => window.removeEventListener('resize', calculateMaxDots);
-  }, []);
+  const barWidth = 32; // Total width of progress bar
+  const filledChar = '█';
+  const emptyChar = '░';
 
   useEffect(() => {
-    const getDelay = (current: number) => {
-      if (current === 0) return 800;
-      const progress = current / maxDots;
-      if (progress < 0.2) return 280;
-      if (progress < 0.8) return 150;
-      return 250;
+    if (completed) return;
+
+    const getDelay = () => {
+      // Variable speed - starts slow, speeds up in middle, slows at end (faster version)
+      if (progress < 3) return 150;
+      if (progress < 15) return 40 + Math.random() * 30;
+      return 100 + Math.random() * 75;
     };
 
     const timeout = setTimeout(() => {
-      setDots((prev) => (prev >= maxDots ? 0 : prev + 1));
-    }, getDelay(dots));
+      if (progress >= barWidth) {
+        setCompleted(true);
+        setTimeout(() => {
+          onComplete?.();
+        }, 400);
+      } else {
+        setProgress((prev) => prev + 1);
+      }
+    }, getDelay());
 
     return () => clearTimeout(timeout);
-  }, [dots, maxDots]);
+  }, [progress, completed, onComplete, barWidth]);
+
+  const filled = filledChar.repeat(progress);
+  const empty = emptyChar.repeat(barWidth - progress);
 
   return (
-    <div 
-      ref={containerRef}
-      style={{ 
-        width: '100%', 
-        fontFamily: 'var(--font-digital), monospace',
-        fontSize: '1.1rem',
-        letterSpacing: '0.05em',
+    <div
+      style={{
+        width: '100%',
+        fontFamily: 'Fixedsys, Terminal, "Perfect DOS VGA 437", "Lucida Console", Consolas, monospace',
+        fontSize: '0.8rem',
         color: 'rgba(255,255,255,0.6)',
-        textTransform: 'lowercase',
         display: 'flex',
+        justifyContent: 'center',
+        gap: '0.5em',
       }}
     >
-      <span ref={textRef}>loading</span>
-      <span>{'.'.repeat(dots)}</span>
+      <span>[{filled}{empty}]</span>
     </div>
   );
 }
