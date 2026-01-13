@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 interface LoadingDotsProps {
   onComplete?: () => void;
@@ -9,6 +9,12 @@ interface LoadingDotsProps {
 export default function LoadingDots({ onComplete }: LoadingDotsProps) {
   const [progress, setProgress] = useState(0);
   const [completed, setCompleted] = useState(false);
+  const onCompleteRef = useRef(onComplete);
+
+  // Keep ref updated without triggering re-renders
+  useEffect(() => {
+    onCompleteRef.current = onComplete;
+  }, [onComplete]);
 
   const barWidth = 32; // Total width of progress bar
   const filledChar = '█';
@@ -28,7 +34,7 @@ export default function LoadingDots({ onComplete }: LoadingDotsProps) {
       if (progress >= barWidth) {
         setCompleted(true);
         setTimeout(() => {
-          onComplete?.();
+          onCompleteRef.current?.();
         }, 400);
       } else {
         setProgress((prev) => prev + 1);
@@ -36,7 +42,7 @@ export default function LoadingDots({ onComplete }: LoadingDotsProps) {
     }, getDelay());
 
     return () => clearTimeout(timeout);
-  }, [progress, completed, onComplete, barWidth]);
+  }, [progress, completed, barWidth]);
 
   const filled = filledChar.repeat(progress);
   const empty = emptyChar.repeat(barWidth - progress);

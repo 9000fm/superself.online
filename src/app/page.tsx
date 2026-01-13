@@ -3,13 +3,14 @@
 import { useState, useEffect, useRef } from 'react';
 import Image from "next/image";
 import LoadingDots from "./LoadingDots";
-import AsciiArt from "./AsciiArt";
+import AsciiArt, { AsciiArtRef } from "./AsciiArt";
 
 type Phase = 'boot' | 'loading' | 'pause' | 'confirm' | 'shutdown' | 'off' | 'main';
 type Language = 'ES' | 'EN' | 'JP';
 
 const translations = {
   ES: {
+    welcome: 'BIENVENIDO/A.',
     willYouContinue: 'CONTINUAR AL SITIO?',
     yes: 'SI',
     no: 'NO',
@@ -20,10 +21,7 @@ const translations = {
     welcomeMessage: 'Aviso del sistema. Se encontro una invitacion activa.',
     ok: 'OK',
     aboutTitle: 'acerca.txt',
-    aboutText1: '(2023) es un sello y colectivo de musica electronica.',
-    aboutText2: 'Compartimos sets, musica propia y recomendaciones fuera del radar, desde artistas emergentes hasta productores poco conocidos. Damos espacio a nuevas propuestas, conectamos a gente que realmente escucha y sumamos a la escena local con colaboraciones y experiencias honestas.',
-    aboutText3: 'Donde lo que mas importa es el sonido, la energia y la gente correcta.',
-    aboutPlaceholder: '// marcador - edita con tu historia de marca',
+    aboutText: '(2023) es un sello y colectivo de musica electronica. Publicamos sets, musica original y recomendaciones fuera del radar. Impulsamos nuevas propuestas, conectamos oyentes reales y colaboramos para sumar a la escena local con experiencias honestas. Poco floro. Sonido primero. Energia real. Gente correcta.',
     close: 'Cerrar',
     shopTitle: 'tienda.exe',
     shopMessage: 'Tienda proximamente...',
@@ -31,13 +29,16 @@ const translations = {
     message: '1 mensaje',
     emailCopied: 'email copiado',
     subscribe: 'suscribirse',
-    subscribePrompt: 'Ingresa tu email para suscribirte',
+    subscribePrompt: 'Ingresa tu e-mail para suscribirte! :)',
     emailPlaceholder: 'tu@email.com',
     subscribed: 'suscrito!',
     subscribedMessage: 'Gracias por suscribirte',
+    confirm: 'Confirmar',
+    cancel: 'Cancelar',
   },
   EN: {
-    willYouContinue: 'WILL YOU CONTINUE?',
+    welcome: 'WELCOME.',
+    willYouContinue: 'DO YOU WISH TO CONTINUE?',
     yes: 'YES',
     no: 'NO',
     shuttingDown: 'shutting down',
@@ -47,10 +48,7 @@ const translations = {
     welcomeMessage: 'System notice. Active invitation found.',
     ok: 'OK',
     aboutTitle: 'about.txt',
-    aboutText1: '(2023) is an electronic music label and collective.',
-    aboutText2: 'We share sets, original music and off-the-radar recommendations, from emerging artists to lesser-known producers. We give space to new proposals, connect people who truly listen, and contribute to the local scene with honest collaborations and experiences.',
-    aboutText3: 'Where what matters most is the sound, the energy, and the right people.',
-    aboutPlaceholder: '// placeholder - edit with your actual brand story',
+    aboutText: '(2023) is an electronic music label and collective. We publish sets, original music and off-the-radar recommendations. We push new proposals, connect real listeners and collaborate to add to the local scene with honest experiences. Less bullsh!t. Sound first. Real energy. Right people.',
     close: 'Close',
     shopTitle: 'shop.exe',
     shopMessage: 'Shop coming soon...',
@@ -58,13 +56,16 @@ const translations = {
     message: '1 message',
     emailCopied: 'email copied',
     subscribe: 'subscribe',
-    subscribePrompt: 'Enter your email to subscribe',
+    subscribePrompt: 'Enter your e-mail to subscribe.',
     emailPlaceholder: 'your@email.com',
     subscribed: 'subscribed!',
     subscribedMessage: 'Thanks for subscribing',
+    confirm: 'Confirm',
+    cancel: 'Cancel',
   },
   JP: {
-    willYouContinue: '続けますか?',
+    welcome: 'ようこそ。',
+    willYouContinue: '続行しますか?',
     yes: 'はい',
     no: 'いいえ',
     shuttingDown: 'シャットダウン',
@@ -74,10 +75,7 @@ const translations = {
     welcomeMessage: 'システム通知。アクティブな招待が見つかりました。',
     ok: 'OK',
     aboutTitle: '概要.txt',
-    aboutText1: '(2023) は電子音楽レーベル＆コレクティブです。',
-    aboutText2: 'セット、オリジナル音楽、新進アーティストから知られざるプロデューサーまで、レーダー外のおすすめを共有。新しい提案にスペースを与え、本当に聴く人々をつなぎ、誠実なコラボレーションと体験でローカルシーンに貢献。',
-    aboutText3: '最も大切なのは、サウンド、エネルギー、そして正しい人々。',
-    aboutPlaceholder: '// プレースホルダー',
+    aboutText: '(2023) は電子音楽レーベル＆コレクティブ。セット、オリジナル音楽、レーダー外のおすすめを発信。新しい提案を推進し、本物のリスナーをつなぎ、誠実な体験でローカルシーンに貢献。余計な言葉なし。サウンド優先。リアルなエネルギー。正しい人々。',
     close: '閉じる',
     shopTitle: '店舗.exe',
     shopMessage: 'ショップは近日公開...',
@@ -85,10 +83,12 @@ const translations = {
     message: '1件',
     emailCopied: 'コピーしました',
     subscribe: '登録',
-    subscribePrompt: 'メールを入力して登録',
+    subscribePrompt: 'メールを入力して登録。',
     emailPlaceholder: 'メール@例.com',
     subscribed: '登録完了!',
     subscribedMessage: '登録ありがとう',
+    confirm: '確認',
+    cancel: 'キャンセル',
   },
 };
 
@@ -120,9 +120,12 @@ export default function Home() {
   const [welcomeStep, setWelcomeStep] = useState<'message' | 'subscribe'>('message');
   const [shopDots, setShopDots] = useState('');
   const [spinner, setSpinner] = useState(0);
-  const spinnerChars = ['◐', '◓', '◑', '◒'];
+  const spinnerChars = ['|', '/', '-', '\\'];
   const [aboutHasTyped, setAboutHasTyped] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  // Ref for ASCII art ripple creation
+  const asciiRef = useRef<AsciiArtRef>(null);
 
   // Welcome popup positioning (only popup that's draggable)
   const [welcomePos, setWelcomePos] = useState({ x: 0, y: 0 });
@@ -131,12 +134,15 @@ export default function Home() {
 
   // Menu dropdown state
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
+  const [burgerVisible, setBurgerVisible] = useState(false);
 
   // Shutdown animation
   const [shutdownText, setShutdownText] = useState('');
   const [rebootCount, setRebootCount] = useState(0);
 
   // Confirm screen typing
+  const [typedWelcome, setTypedWelcome] = useState('');
+  const [welcomeDots, setWelcomeDots] = useState('');
   const [typedConfirm, setTypedConfirm] = useState('');
   const [typedYes, setTypedYes] = useState('');
   const [typedNo, setTypedNo] = useState('');
@@ -200,8 +206,6 @@ export default function Home() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (emailRegex.test(subscribeEmail)) {
       // TODO: Send to mailing list service (Mailchimp, Buttondown, etc.)
-      // Example: fetch('/api/subscribe', { method: 'POST', body: JSON.stringify({ email: subscribeEmail }) })
-      console.log('Subscribe email:', subscribeEmail);
       setSubscribeEmail('');
       setShowWelcomePopup(false);
       setWelcomeStep('message');
@@ -220,6 +224,7 @@ export default function Home() {
     setShowWelcomePopup(false);
     setShowNotification(false);
     setShowMenuDropdown(false);
+    setBurgerVisible(false);
     // Reset about panel typing state
     setTypedAboutText('');
     setAboutTypingComplete(false);
@@ -264,6 +269,8 @@ export default function Home() {
       // Brief pause on black, then snap to blue and start boot sequence
       setTimeout(() => {
         // Reset everything and reboot
+        setTypedWelcome('');
+        setWelcomeDots('');
         setTypedConfirm('');
         setTypedYes('');
         setTypedNo('');
@@ -273,6 +280,7 @@ export default function Home() {
         setActiveSection(null);
         setShowNotification(false);
         setShowMenuDropdown(false);
+        setBurgerVisible(false);
         setShowLogo(false);
         setShowLoader(false);
         // Reset entrance sequence
@@ -287,17 +295,21 @@ export default function Home() {
     }
   };
 
-  // Typing effect for confirm screen
+  // Typing effect for confirm screen - hacker style
   const [showConfirmCursor, setShowConfirmCursor] = useState(false);
   useEffect(() => {
     if (phase === 'confirm') {
+      const welcomeText = t.welcome;
       const confirmText = t.willYouContinue;
       const yesText = t.yes;
       const noText = t.no;
+      let welcomeIndex = 0;
       let confirmIndex = 0;
       let yesIndex = 0;
       let noIndex = 0;
 
+      setTypedWelcome('');
+      setWelcomeDots('');
       setTypedConfirm('');
       setTypedYes('');
       setTypedNo('');
@@ -310,41 +322,64 @@ export default function Home() {
       }, 300);
 
       const typeTimer = setTimeout(() => {
-        const confirmInterval = setInterval(() => {
-          if (confirmIndex < confirmText.length) {
-            setTypedConfirm(confirmText.slice(0, confirmIndex + 1));
-            confirmIndex++;
+        // Type WELCOME first
+        const welcomeInterval = setInterval(() => {
+          if (welcomeIndex < welcomeText.length) {
+            setTypedWelcome(welcomeText.slice(0, welcomeIndex + 1));
+            welcomeIndex++;
           } else {
-            clearInterval(confirmInterval);
+            clearInterval(welcomeInterval);
 
-            // Pause, then type YES
-            setTimeout(() => {
-              const yesInterval = setInterval(() => {
-                if (yesIndex < yesText.length) {
-                  setTypedYes(yesText.slice(0, yesIndex + 1));
-                  yesIndex++;
-                } else {
-                  clearInterval(yesInterval);
+            // Animate dots: . then .. then ...
+            let dotCount = 0;
+            const dotsInterval = setInterval(() => {
+              dotCount++;
+              setWelcomeDots('.'.repeat(dotCount));
+              if (dotCount >= 3) {
+                clearInterval(dotsInterval);
 
-                  // Small pause, then type NO
-                  setTimeout(() => {
-                    const noInterval = setInterval(() => {
-                      if (noIndex < noText.length) {
-                        setTypedNo(noText.slice(0, noIndex + 1));
-                        noIndex++;
-                      } else {
-                        clearInterval(noInterval);
+                // Pause after dots, then type the question
+                setTimeout(() => {
+                  const confirmInterval = setInterval(() => {
+                    if (confirmIndex < confirmText.length) {
+                      setTypedConfirm(confirmText.slice(0, confirmIndex + 1));
+                      confirmIndex++;
+                    } else {
+                      clearInterval(confirmInterval);
 
-                        // Show selector after everything is typed
-                        setTimeout(() => setShowSelector(true), 400);
-                      }
-                    }, 80);
-                  }, 200);
-                }
-              }, 80);
-            }, 400);
+                      // Pause, then type YES
+                      setTimeout(() => {
+                        const yesInterval = setInterval(() => {
+                          if (yesIndex < yesText.length) {
+                            setTypedYes(yesText.slice(0, yesIndex + 1));
+                            yesIndex++;
+                          } else {
+                            clearInterval(yesInterval);
+
+                            // Small pause, then type NO
+                            setTimeout(() => {
+                              const noInterval = setInterval(() => {
+                                if (noIndex < noText.length) {
+                                  setTypedNo(noText.slice(0, noIndex + 1));
+                                  noIndex++;
+                                } else {
+                                  clearInterval(noInterval);
+
+                                  // Show selector after everything is typed
+                                  setTimeout(() => setShowSelector(true), 400);
+                                }
+                              }, 80);
+                            }, 200);
+                          }
+                        }, 80);
+                      }, 400);
+                    }
+                  }, 50);
+                }, 600); // Pause after dots
+              }
+            }, 300); // Dot animation speed
           }
-        }, 60);
+        }, 70);
       }, 1000);
 
       return () => {
@@ -458,10 +493,20 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  // Burger appears after brief delay (instant, no fade)
+  useEffect(() => {
+    if (showFooter && !burgerVisible) {
+      const timer = setTimeout(() => {
+        setBurgerVisible(true);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [showFooter, burgerVisible]);
+
   // About typing effect - only types once per session, not on every open
   useEffect(() => {
     if (activeSection === 'about' && !aboutHasTyped) {
-      const fullText = `${t.aboutText1} ${t.aboutText2} ${t.aboutText3}`;
+      const fullText = t.aboutText;
       setTypedAboutText('');
       setAboutTypingComplete(false);
 
@@ -540,8 +585,8 @@ export default function Home() {
   // Classic Windows font
   const winFont = 'Fixedsys, Terminal, "Perfect DOS VGA 437", "Lucida Console", Consolas, monospace';
 
-  const frameInset = '60px';
-  const contentInset = '80px';
+  const frameInset = 'clamp(50px, 8vw, 60px)';
+  const contentInset = 'clamp(65px, 10vw, 80px)';
 
   // Win95 popup component (only used for welcome popup now)
   const Win95Popup = ({
@@ -589,9 +634,16 @@ export default function Home() {
             userSelect: 'none',
           }}
         >
-          <span style={{ color: 'white', fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '12px', fontWeight: 'bold' }}>
-            {title}
-          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ marginTop: '-1px' }}>
+              <rect x="1" y="3" width="14" height="10" fill="#c0c0c0" stroke="#000" strokeWidth="1"/>
+              <rect x="3" y="5" width="10" height="6" fill="#000080"/>
+              <rect x="0" y="12" width="16" height="3" fill="#808080"/>
+            </svg>
+            <span style={{ color: 'white', fontFamily: 'Segoe UI, Tahoma, sans-serif', fontSize: '11px', fontWeight: 600 }}>
+              {title}
+            </span>
+          </div>
           <button
             onClick={(e) => { e.stopPropagation(); onClose(); }}
             onMouseDown={(e) => e.stopPropagation()}
@@ -695,7 +747,7 @@ export default function Home() {
         </div>
       </div>
 
-      {/* === CONFIRM PHASE - "WILL YOU CONTINUE?" === */}
+      {/* === CONFIRM PHASE - "BIENVENIDO" then question === */}
       <div
         style={{
           position: 'absolute',
@@ -708,9 +760,20 @@ export default function Home() {
           textAlign: 'left',
         }}
       >
-        <div style={{ fontSize: 'clamp(1.1rem, 3.5vw, 1.6rem)', marginBottom: '1.5rem', letterSpacing: '0.05em' }}>
+        {/* BIENVENIDO/A... line - disappears when question starts */}
+        <div style={{
+          fontSize: 'clamp(1.1rem, 3.5vw, 1.6rem)',
+          marginBottom: '1rem',
+          letterSpacing: '0.05em',
+          display: typedConfirm ? 'none' : 'block',
+        }}>
+          {typedWelcome}{welcomeDots}
+          <span className={showConfirmCursor && !welcomeDots ? 'blink' : ''} style={{ opacity: showConfirmCursor && welcomeDots.length < 3 ? 1 : 0 }}>_</span>
+        </div>
+        {/* Question line - appears after welcome disappears */}
+        <div style={{ fontSize: 'clamp(1.1rem, 3.5vw, 1.6rem)', marginBottom: '1.5rem', letterSpacing: '0.05em', display: typedConfirm ? 'block' : 'none' }}>
           {typedConfirm}
-          <span className={showConfirmCursor && !typedYes ? 'blink' : ''} style={{ opacity: showConfirmCursor && !typedYes ? 1 : 0 }}>_</span>
+          <span className={typedConfirm && !typedYes ? 'blink' : ''} style={{ opacity: typedConfirm && !typedYes ? 1 : 0 }}>_</span>
         </div>
         <div style={{ fontSize: 'clamp(1rem, 3vw, 1.3rem)', marginLeft: '1rem' }}>
           {/* YES option */}
@@ -789,6 +852,7 @@ export default function Home() {
           padding: '4px 10px',
           visibility: showTitlePrompt ? 'visible' : 'hidden',
           cursor: 'pointer',
+          zIndex: 10,
         }}
         onClick={handleReplayEntrance}
       >
@@ -797,22 +861,32 @@ export default function Home() {
 
       {/* Center - ASCII Art (contained within frame) */}
       <div
+        onClick={(e) => {
+          if (e.target === e.currentTarget) {
+            asciiRef.current?.createRipple(e.clientX, e.clientY);
+          }
+        }}
+        onTouchStart={(e) => {
+          if (e.target === e.currentTarget && e.touches.length > 0) {
+            e.preventDefault();
+            asciiRef.current?.createRipple(e.touches[0].clientX, e.touches[0].clientY);
+          }
+        }}
         style={{
           position: 'absolute',
           top: frameInset,
           left: frameInset,
           right: frameInset,
           bottom: frameInset,
-          display: showMainContent ? 'flex' : 'none',
-          alignItems: 'center',
-          justifyContent: 'center',
+          display: showMainContent ? 'block' : 'none',
           opacity: showFooter ? 1 : 0,
           transition: 'opacity 1.5s ease-in-out',
-          pointerEvents: 'none',
           overflow: 'hidden',
+          zIndex: 1,
+          cursor: 'crosshair',
         }}
       >
-        <AsciiArt color="white" isVisible={showFooter} />
+        <AsciiArt ref={asciiRef} color="white" isVisible={showFooter} />
       </div>
 
       {/* Social icons - bottom right outside frame, vertical */}
@@ -821,12 +895,13 @@ export default function Home() {
         style={{
           position: 'absolute',
           bottom: frameInset,
-          right: '10px',
+          right: '8px',
           display: showMainContent ? 'flex' : 'none',
           flexDirection: 'column',
           gap: '8px',
           opacity: showFooter ? 1 : 0,
           transition: 'opacity 0.6s ease-in-out',
+          zIndex: 10,
         }}
       >
         <a
@@ -871,39 +946,44 @@ export default function Home() {
           display: showMainContent ? 'flex' : 'none',
           flexDirection: 'column',
           alignItems: 'flex-end',
-          opacity: showFooter ? 1 : 0,
-          transition: 'opacity 0.6s ease-in-out',
+          visibility: burgerVisible ? 'visible' : 'hidden',
+          zIndex: 10,
         }}
       >
-        {/* Burger Icon */}
+        {/* Burger Icon - matches title style exactly */}
         <span
           onClick={() => setShowMenuDropdown(!showMenuDropdown)}
           style={{
-            fontFamily: winFont,
-            fontSize: 'clamp(1.5rem, 5vw, 2.5rem)',
-            color: '#000080',
             backgroundColor: '#c0c0c0',
+            color: '#000080',
             cursor: 'pointer',
-            padding: '6px 14px',
-            fontWeight: 'bold',
-            lineHeight: 1,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            height: 'calc(clamp(1.5rem, 5vw, 2.5rem) + 12px)',
+            width: 'calc(clamp(1.5rem, 5vw, 2.5rem) + 12px)',
           }}
         >
-          {showMenuDropdown ? '✕' : '≡'}
+          {showMenuDropdown ? (
+            <svg style={{ width: '60%', height: '60%' }} viewBox="0 0 20 20" fill="none">
+              <path d="M4 4L16 16M16 4L4 16" stroke="#000080" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          ) : (
+            <svg style={{ width: '60%', height: '60%' }} viewBox="0 0 20 20" fill="none">
+              <path d="M3 5H17M3 10H17M3 15H17" stroke="#000080" strokeWidth="2.5" strokeLinecap="round"/>
+            </svg>
+          )}
         </span>
 
         {/* Dropdown Menu */}
         {showMenuDropdown && (
           <div
             style={{
-              marginTop: '16px',
+              marginTop: '28px',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'flex-end',
-              gap: '12px',
+              gap: '20px',
             }}
           >
             <span
@@ -914,11 +994,11 @@ export default function Home() {
               }}
               style={{
                 fontFamily: winFont,
-                fontSize: 'clamp(1rem, 3.5vw, 1.2rem)',
+                fontSize: 'clamp(1.1rem, 4vw, 1.4rem)',
                 color: activeSection === 'about' ? '#000080' : 'white',
                 backgroundColor: activeSection === 'about' ? '#c0c0c0' : undefined,
                 cursor: 'pointer',
-                padding: '3px 6px',
+                padding: '4px 8px',
               }}
             >
               {t.about}<span className="nav-cursor" style={{ color: activeSection === 'about' ? '#000080' : undefined }}>_</span>
@@ -931,11 +1011,11 @@ export default function Home() {
               }}
               style={{
                 fontFamily: winFont,
-                fontSize: 'clamp(1rem, 3.5vw, 1.2rem)',
+                fontSize: 'clamp(1.1rem, 4vw, 1.4rem)',
                 color: activeSection === 'shop' ? '#000080' : 'white',
                 backgroundColor: activeSection === 'shop' ? '#c0c0c0' : undefined,
                 cursor: 'pointer',
-                padding: '3px 6px',
+                padding: '4px 8px',
               }}
             >
               {t.shop}<span className="nav-cursor" style={{ color: activeSection === 'shop' ? '#000080' : undefined }}>_</span>
@@ -950,7 +1030,7 @@ export default function Home() {
           {welcomeStep === 'message' ? (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '14px', width: '100%' }}>
-                <Image src="/smiley.png" alt=":)" width={48} height={48} style={{ minWidth: '48px', flexShrink: 0 }} />
+                <Image src="/smiley.png" alt=":)" width={48} height={48} style={{ minWidth: '48px', flexShrink: 0, marginTop: '8px' }} />
                 <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', lineHeight: '1.5' }}>
                   {t.welcomeMessage}
                 </span>
@@ -973,11 +1053,18 @@ export default function Home() {
               </div>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '12px' }} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
-              <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', textAlign: 'left' }}>
-                {t.subscribePrompt}
-              </span>
-              <form onSubmit={handleSubscribe} style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
+                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
+                  <rect x="2" y="5" width="20" height="14" fill="#ffffcc" stroke="#808080" strokeWidth="1"/>
+                  <path d="M2 5 L12 13 L22 5" stroke="#808080" strokeWidth="1" fill="none"/>
+                  <rect x="3" y="6" width="18" height="12" fill="none" stroke="#fff" strokeWidth="0.5"/>
+                </svg>
+                <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', textAlign: 'left', lineHeight: '1.5' }}>
+                  {t.subscribePrompt}
+                </span>
+              </div>
+              <form onSubmit={handleSubscribe} style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
                 <input
                   type="email"
                   value={subscribeEmail}
@@ -990,7 +1077,7 @@ export default function Home() {
                     backgroundColor: '#fff',
                     border: '2px inset #808080',
                     color: '#000',
-                    padding: '6px 10px',
+                    padding: '8px 12px',
                     fontFamily: '"MS Sans Serif", Arial, sans-serif',
                     fontSize: '12px',
                     outline: 'none',
@@ -1002,17 +1089,17 @@ export default function Home() {
                   <button
                     type="submit"
                     className="win-btn"
-                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '3px 20px', cursor: 'pointer', ...win95Button }}
+                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '4px 24px', cursor: 'pointer', ...win95Button }}
                   >
-                    {isSubscribed ? t.subscribed : t.ok}
+                    {isSubscribed ? t.subscribed : t.confirm}
                   </button>
                   <button
                     type="button"
                     onClick={handleCloseWelcome}
                     className="win-btn"
-                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '3px 16px', cursor: 'pointer', ...win95Button }}
+                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '4px 16px', cursor: 'pointer', ...win95Button }}
                   >
-                    {t.close}
+                    {t.cancel}
                   </button>
                 </div>
               </form>
@@ -1050,9 +1137,16 @@ export default function Home() {
                 alignItems: 'center',
               }}
             >
-              <span style={{ color: 'white', fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '12px', fontWeight: 'bold' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ marginTop: '-1px' }}>
+                <rect x="1" y="3" width="14" height="10" fill="#c0c0c0" stroke="#000" strokeWidth="1"/>
+                <rect x="3" y="5" width="10" height="6" fill="#000080"/>
+                <rect x="0" y="12" width="16" height="3" fill="#808080"/>
+              </svg>
+              <span style={{ color: 'white', fontFamily: 'Segoe UI, Tahoma, sans-serif', fontSize: '11px', fontWeight: 600 }}>
                 superself.exe
               </span>
+            </div>
             </div>
             <div style={{ padding: '20px 24px', textAlign: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '16px' }}>
@@ -1076,7 +1170,7 @@ export default function Home() {
       {/* About Panel - MS-DOS Editor style */}
       {activeSection === 'about' && (
         <div
-          onClick={() => setActiveSection(null)}
+          onClick={(e) => { e.stopPropagation(); setActiveSection(null); }}
           style={{
             position: 'fixed',
             top: 0,
@@ -1100,14 +1194,43 @@ export default function Home() {
               color: '#000',
               width: '520px',
               maxWidth: '85vw',
-              padding: 'clamp(16px, 4vw, 24px) clamp(16px, 5vw, 28px)',
               lineHeight: '1.8',
               textAlign: 'center',
+              position: 'relative',
             }}
           >
-            <p>
-              <span style={{ backgroundColor: '#000080', color: '#fff', padding: '2px 6px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' }}>superself</span> {t.aboutText1} {t.aboutText2} {t.aboutText3}
-            </p>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              padding: '6px 6px 0 6px',
+            }}>
+              <button
+                onClick={() => setActiveSection(null)}
+                style={{
+                  width: '20px',
+                  height: '18px',
+                  backgroundColor: '#c0c0c0',
+                  border: 'none',
+                  boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
+                  cursor: 'pointer',
+                  fontFamily: 'Arial, sans-serif',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ padding: '0 clamp(16px, 5vw, 28px) clamp(16px, 4vw, 24px)' }}>
+              <p>
+                <span style={{ backgroundColor: '#000080', color: '#fff', padding: '2px 6px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' }}>superself</span> {t.aboutText}
+              </p>
+            </div>
           </div>
         </div>
       )}
@@ -1115,7 +1238,7 @@ export default function Home() {
       {/* Shop Panel - MS-DOS Editor style */}
       {activeSection === 'shop' && (
         <div
-          onClick={() => setActiveSection(null)}
+          onClick={(e) => { e.stopPropagation(); setActiveSection(null); }}
           style={{
             position: 'fixed',
             top: 0,
@@ -1139,11 +1262,40 @@ export default function Home() {
               color: '#000',
               width: '340px',
               maxWidth: '85vw',
-              padding: 'clamp(16px, 4vw, 24px) clamp(16px, 5vw, 28px)',
               textAlign: 'center',
+              position: 'relative',
             }}
           >
-            {t.shopMessage.replace('...', '')}<span style={{ display: 'inline-block', width: '1.5em', textAlign: 'left' }}>{shopDots}</span>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'flex-end',
+              padding: '6px 6px 0 6px',
+            }}>
+              <button
+                onClick={() => setActiveSection(null)}
+                style={{
+                  width: '20px',
+                  height: '18px',
+                  backgroundColor: '#c0c0c0',
+                  border: 'none',
+                  boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
+                  cursor: 'pointer',
+                  fontFamily: 'Arial, sans-serif',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: 0,
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ padding: '0 clamp(16px, 5vw, 28px) clamp(16px, 4vw, 24px)' }}>
+              {t.shopMessage.replace('...', '')}<span style={{ display: 'inline-block', width: '1.5em', textAlign: 'left' }}>{shopDots}</span>
+            </div>
           </div>
         </div>
       )}
@@ -1181,6 +1333,7 @@ export default function Home() {
             fontFamily: winFont,
             fontSize: 'clamp(0.85rem, 2vw, 1rem)',
             color: 'rgba(255,255,255,0.75)',
+            zIndex: 10,
           }}
         >
           <span className="blink-slow">▶</span> [{t.message}]
@@ -1201,6 +1354,7 @@ export default function Home() {
           fontSize: 'clamp(0.95rem, 2.2vw, 1.1rem)',
           opacity: showFooter ? 1 : 0,
           transition: 'opacity 0.6s ease-in-out',
+          zIndex: 10,
         }}
       >
         {(['JP', 'EN', 'ES'] as Language[]).map((lang) => (
