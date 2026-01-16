@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **superself.online** - Electronic music label & creative brand website.
 
-## Current State (v2)
+## Current State (v2.3)
 
 Full interactive landing page with Windows 95/DOS CLI aesthetic:
 
@@ -23,14 +23,15 @@ Full interactive landing page with Windows 95/DOS CLI aesthetic:
 - Shutdown leads to black screen, then reboots
 
 ### Main Screen
-- Thin white frame border (Keita Yamada style)
-- "> superself_" title types in top-left (click to replay animation)
-- "> acerca" and "> tienda" nav items type in top-right
+- Thin white frame border (Keita Yamada style, tighter on mobile)
+- "> superself_" title scrambles in top-left (click to replay animation)
+- Burger menu top-right with "> acerca" and "> tienda" nav items
 - Nav items stay highlighted when active (grey bg, blue text)
-- Social icons (Instagram, SoundCloud, Mail) in top-left outside frame
-- Language switcher (ES/EN/JP) bottom-left, vertical orientation
-- Copyright bottom-right
-- Subtle ASCII animation in center
+- Social icons (Instagram, SoundCloud, Mail) INSIDE frame, bottom-right
+- Language switcher (ES/EN/JP) OUTSIDE frame, bottom-left, vertical
+- Language change triggers scramble effect on all visible text
+- Copyright bottom-center
+- Interactive ASCII animation with click ripples
 
 ### About Section (acerca)
 - Minimal overlay (no Windows chrome)
@@ -94,9 +95,12 @@ npm run lint     # Run ESLint
 
 ```
 src/app/
-├── page.tsx        # Main landing page (~1100 lines)
+├── page.tsx        # Main landing page (~1800 lines)
 ├── layout.tsx      # Root layout with font config
 ├── LoadingDots.tsx # Boot loader progress bar
+├── AsciiArt.tsx    # Interactive ASCII background with ripples
+├── AsciiEye.tsx    # Alternative ASCII (unused)
+├── AsciiGlobe.tsx  # Alternative ASCII (unused)
 └── globals.css     # Base styles + animations
 public/
 ├── superself-logo-wh.png
@@ -135,3 +139,9 @@ showWelcomePopup // Easter egg popup
 - Host: Vercel
 - Domain: superself.online (Namecheap)
 - Repo: github.com/9000fm/superself.online
+
+## Documentation
+
+- `CLAUDE.md` - This file (project overview for AI assistants)
+- `VISUAL-GUIDE.md` - Design system (colors, typography, spacing)
+- `FUTURE-UPDATES.md` - Roadmap, ideas, known issues
