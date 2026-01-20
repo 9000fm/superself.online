@@ -1069,7 +1069,7 @@ export default function Home() {
           onTouchStart={(e) => { e.preventDefault(); handleDragStart(e, windowId); }}
           style={{
             background: 'linear-gradient(90deg, #000080, #1084d0)',
-            padding: '6px 6px',
+            padding: '4px 6px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -1093,8 +1093,8 @@ export default function Home() {
             onTouchStart={(e) => e.stopPropagation()}
             onTouchEnd={(e) => e.stopPropagation()}
             style={{
-              width: '20px',
-              height: '18px',
+              width: '22px',
+              height: '20px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -1103,7 +1103,7 @@ export default function Home() {
               touchAction: 'manipulation',
               backgroundColor: '#c0c0c0',
               border: 'none',
-              boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #dfdfdf',
+              boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
             }}
           >
             <svg width="10" height="9" viewBox="0 0 8 7" fill="none">
@@ -1423,8 +1423,11 @@ export default function Home() {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            height: 'clamp(48px, 10vw, 56px)',
-            width: 'clamp(48px, 10vw, 56px)',
+            height: 'clamp(46px, 10vw, 54px)',
+            width: 'clamp(46px, 10vw, 54px)',
+            boxShadow: showMenuDropdown
+              ? 'inset 1px 1px 0 #0a0a0a, inset -1px -1px 0 #ffffff, inset 2px 2px 0 #808080, inset -2px -2px 0 #dfdfdf, inset 3px 3px 0 #404040'
+              : 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf, inset -3px -3px 0 #404040',
           }}
         >
           {showMenuDropdown ? (
@@ -1698,8 +1701,8 @@ export default function Home() {
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
                 style={{
-                  width: '28px',
-                  height: '26px',
+                  width: '22px',
+                  height: '20px',
                   backgroundColor: '#c0c0c0',
                   border: 'none',
                   boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
@@ -1768,8 +1771,8 @@ export default function Home() {
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
                 style={{
-                  width: '28px',
-                  height: '26px',
+                  width: '22px',
+                  height: '20px',
                   backgroundColor: '#c0c0c0',
                   border: 'none',
                   boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
