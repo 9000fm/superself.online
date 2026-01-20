@@ -34,7 +34,7 @@ const translations = {
     about: '> acerca',
     shop: '> tienda',
     welcomeTitle: 'superself.exe',
-    welcomeMessage: 'Aviso del sistema. Se encontró una invitación activa.',
+    welcomeMessage: 'Se encontro una invitacion activa.',
     ok: 'OK',
     aboutTitle: 'acerca.txt',
     aboutText: '(2023) es un sello y colectivo de música electrónica. Compartimos mixes, recomendaciones selectas y música original. Nos mueve apoyar proyectos con identidad, acercar artistas a oyentes reales y fomentar una cultura de colaboración. Sonido primero. Poco floro. Energía real.',
@@ -54,6 +54,8 @@ const translations = {
     confirm: 'Confirmar',
     cancel: 'Cancelar',
     skip: 'saltar',
+    warningTitle: 'Mensaje del sistema',
+    warningMessage: 'El tamano de pantalla puede afectar la experiencia.\nGira el dispositivo o redimensiona la ventana.',
   },
   EN: {
     welcome: 'WELCOME.',
@@ -64,7 +66,7 @@ const translations = {
     about: '> about',
     shop: '> shop',
     welcomeTitle: 'superself.exe',
-    welcomeMessage: 'System notice. Active invitation found.',
+    welcomeMessage: 'Active invitation found.',
     ok: 'OK',
     aboutTitle: 'about.txt',
     aboutText: '(2023) is an electronic music label and collective. We share mixes, curated recommendations and original music. We support projects with identity, bring artists closer to real listeners and foster a culture of collaboration. Sound first. Less talk. Real energy.',
@@ -84,6 +86,8 @@ const translations = {
     confirm: 'Confirm',
     cancel: 'Cancel',
     skip: 'skip',
+    warningTitle: 'System message',
+    warningMessage: 'Screen size may affect the experience.\nRotate device or resize window.',
   },
   JP: {
     welcome: 'ようこそ。',
@@ -94,7 +98,7 @@ const translations = {
     about: '> 概要',
     shop: '> 店舗',
     welcomeTitle: 'superself.exe',
-    welcomeMessage: 'システム通知。アクティブな招待が見つかりました。',
+    welcomeMessage: '招待が見つかりました。',
     ok: 'OK',
     aboutTitle: '概要.txt',
     aboutText: '(2023) は電子音楽レーベル＆コレクティブ。ミックス、厳選レコメンド、オリジナル音楽を共有。個性あるプロジェクトを支援し、アーティストと本物のリスナーを繋ぎ、コラボ文化を育む。サウンド優先。余計な言葉なし。リアルなエネルギー。',
@@ -114,6 +118,8 @@ const translations = {
     confirm: '確認',
     cancel: 'キャンセル',
     skip: 'スキップ',
+    warningTitle: 'システムメッセージ',
+    warningMessage: '画面サイズが体験に影響する可能性があります。\nデバイスを回転またはリサイズ。',
   },
 };
 
@@ -162,10 +168,6 @@ export default function Home() {
   // Track which window is on top (like real Windows)
   const [activeWindow, setActiveWindow] = useState<'welcome' | 'about' | null>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
-  const [dragStartPos, setDragStartPos] = useState({ x: 0, y: 0 });
-  const [hasDraggedPastThreshold, setHasDraggedPastThreshold] = useState(false);
-  const DRAG_THRESHOLD = 10; // pixels before drag activates (higher for better mobile tap detection)
 
   // Menu dropdown state
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
@@ -191,8 +193,35 @@ export default function Home() {
   const [scrambledWelcomeMsg, setScrambledWelcomeMsg] = useState('');
   const [scrambledAboutText, setScrambledAboutText] = useState('');
   const [scrambledShopMsg, setScrambledShopMsg] = useState('');
+  const [scrambledClose, setScrambledClose] = useState('');
+  const [scrambledCancel, setScrambledCancel] = useState('');
   const prevMainLangRef = useRef<Language>(language);
   const [rebootCount, setRebootCount] = useState(0);
+
+  // Landscape/problematic aspect ratio detection
+  const [showLandscapeWarning, setShowLandscapeWarning] = useState(false);
+
+  // Detect problematic aspect ratio (landscape on small screens)
+  useEffect(() => {
+    const checkAspectRatio = () => {
+      const w = window.innerWidth;
+      const h = window.innerHeight;
+      const aspectRatio = w / h;
+      // Show warning when: landscape (wider than tall) AND short height (mobile/tablet landscape)
+      // Threshold: aspect ratio > 1.4 AND height < 500px
+      const isProblematic = aspectRatio > 2.0 && h < 380;
+      setShowLandscapeWarning(isProblematic);
+    };
+
+    checkAspectRatio();
+    window.addEventListener('resize', checkAspectRatio);
+    window.addEventListener('orientationchange', checkAspectRatio);
+
+    return () => {
+      window.removeEventListener('resize', checkAspectRatio);
+      window.removeEventListener('orientationchange', checkAspectRatio);
+    };
+  }, []);
 
   // Confirm screen typing
   const [typedWelcome, setTypedWelcome] = useState('');
@@ -276,9 +305,28 @@ export default function Home() {
     setWelcomeStep('message');
   };
 
-  const handleCopyEmail = (e: React.MouseEvent) => {
-    navigator.clipboard.writeText('flavio@superself.online');
-    setEmailToastPos({ x: e.clientX, y: e.clientY });
+  const handleCopyEmail = async (e: React.MouseEvent | React.TouchEvent) => {
+    const clientX = 'touches' in e ? e.touches[0]?.clientX || 0 : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0]?.clientY || 0 : e.clientY;
+    const email = 'flavio@superself.online';
+
+    try {
+      // Try modern clipboard API first
+      await navigator.clipboard.writeText(email);
+    } catch {
+      // Fallback for iOS Safari: use textarea trick
+      const textarea = document.createElement('textarea');
+      textarea.value = email;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.focus();
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
+
+    setEmailToastPos({ x: clientX, y: clientY });
     setShowEmailCopied(true);
     setTimeout(() => setShowEmailCopied(false), 2000);
   };
@@ -690,7 +738,7 @@ export default function Home() {
 
         // Per-character lock frame targets (randomized for organic feel)
         // Faster lock in skip mode
-        const lockMultiplier = skipMode ? 6 : 10;
+        const lockMultiplier = skipMode ? 8 : 14;
         const lockTargets = titleText.split('').map((_, i) => {
           const baseDelay = (i + 1) * lockMultiplier;
           const randomVariation = Math.floor(Math.random() * 8) - 4;
@@ -699,7 +747,7 @@ export default function Home() {
         const isLocked = new Array(titleText.length).fill(false);
 
         // Scramble animation (faster interval in skip mode)
-        const scrambleSpeed = skipMode ? 25 : 40;
+        const scrambleSpeed = skipMode ? 30 : 55;
         scrambleInterval = setInterval(() => {
           scrambleFrame++;
 
@@ -753,7 +801,8 @@ export default function Home() {
         clearTimeout(welcomeTimer);
       };
     }
-  }, [phase, skipMode, replayTrigger]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase, replayTrigger]);
 
 
   // Language change scramble effect for main screen
@@ -781,6 +830,8 @@ export default function Home() {
       const newAboutText = t.aboutText;
       const oldShopMsg = translations[prevLang].shopMessage;
       const newShopMsg = t.shopMessage;
+      const newClose = t.close;
+      const newCancel = t.cancel;
 
       isMainLangScramblingRef.current = true;
 
@@ -815,6 +866,8 @@ export default function Home() {
         setScrambledWelcomeMsg(scrambleText(newWelcomeMsg));
         setScrambledAboutText(scrambleText(newAboutText));
         setScrambledShopMsg(scrambleText(newShopMsg));
+        setScrambledClose(scrambleText(newClose));
+        setScrambledCancel(scrambleText(newCancel));
 
         if (frame >= maxFrames) {
           // Final values - clear scrambled states to show actual translations
@@ -825,6 +878,8 @@ export default function Home() {
           setScrambledWelcomeMsg('');
           setScrambledAboutText('');
           setScrambledShopMsg('');
+          setScrambledClose('');
+          setScrambledCancel('');
           clearInterval(scrambleInterval);
           isMainLangScramblingRef.current = false;
         }
@@ -889,8 +944,9 @@ export default function Home() {
   }, [activeSection, aboutHasTyped, t]);
 
   // Dragging logic for popups - supports both mouse and touch
-  // Uses threshold to distinguish taps from drags (prevents button click issues)
   const handleDragStart = (e: React.MouseEvent | React.TouchEvent, popupId: string) => {
+    e.preventDefault(); // Prevent text selection
+
     const popup = (e.target as HTMLElement).closest('.popup-window');
     const rect = popup?.getBoundingClientRect();
     if (rect) {
@@ -898,10 +954,8 @@ export default function Home() {
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
       // If popup is centered (position is 0,0), convert to absolute position first
-      // This prevents the jump when dragging a centered popup
       const currentPos = popupId === 'welcome' ? welcomePos : aboutPos;
       if (currentPos.x === 0 && currentPos.y === 0) {
-        // Set initial absolute position to match current visual position
         const initialPos = { x: rect.left, y: rect.top };
         if (popupId === 'welcome') {
           setWelcomePos(initialPos);
@@ -910,62 +964,45 @@ export default function Home() {
         }
       }
 
-      setDragOffset({
-        x: clientX - rect.left,
-        y: clientY - rect.top,
-      });
-      setDragStartPos({ x: clientX, y: clientY });
-      setHasDraggedPastThreshold(false);
+      const offsetX = clientX - rect.left;
+      const offsetY = clientY - rect.top;
+
+      // Define handlers
+      const handleMove = (moveEvent: MouseEvent | TouchEvent) => {
+        if ('touches' in moveEvent) {
+          moveEvent.preventDefault();
+          if (!moveEvent.touches[0]) return;
+        }
+        const moveX = 'touches' in moveEvent ? moveEvent.touches[0].clientX : moveEvent.clientX;
+        const moveY = 'touches' in moveEvent ? moveEvent.touches[0].clientY : moveEvent.clientY;
+
+        const newPos = { x: moveX - offsetX, y: moveY - offsetY };
+        if (popupId === 'welcome') {
+          setWelcomePos(newPos);
+        } else if (popupId === 'about') {
+          setAboutPos(newPos);
+        }
+      };
+
+      const handleEnd = () => {
+        document.removeEventListener('mousemove', handleMove);
+        document.removeEventListener('mouseup', handleEnd);
+        document.removeEventListener('touchmove', handleMove);
+        document.removeEventListener('touchend', handleEnd);
+        document.removeEventListener('touchcancel', handleEnd);
+        setIsDragging(null);
+      };
+
+      // Attach listeners immediately
+      document.addEventListener('mousemove', handleMove);
+      document.addEventListener('mouseup', handleEnd);
+      document.addEventListener('touchmove', handleMove, { passive: false });
+      document.addEventListener('touchend', handleEnd);
+      document.addEventListener('touchcancel', handleEnd);
+
       setIsDragging(popupId);
     }
   };
-
-  useEffect(() => {
-    const handleMove = (e: MouseEvent | TouchEvent) => {
-      if (isDragging) {
-        const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
-        const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
-
-        // Check if we've moved past threshold
-        const deltaX = Math.abs(clientX - dragStartPos.x);
-        const deltaY = Math.abs(clientY - dragStartPos.y);
-
-        if (!hasDraggedPastThreshold && (deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD)) {
-          setHasDraggedPastThreshold(true);
-        }
-
-        // Only update position if past threshold
-        if (hasDraggedPastThreshold || deltaX > DRAG_THRESHOLD || deltaY > DRAG_THRESHOLD) {
-          const newPos = {
-            x: clientX - dragOffset.x,
-            y: clientY - dragOffset.y,
-          };
-          if (isDragging === 'welcome') {
-            setWelcomePos(newPos);
-          } else if (isDragging === 'about') {
-            setAboutPos(newPos);
-          }
-        }
-      }
-    };
-    const handleEnd = () => {
-      setIsDragging(null);
-      setHasDraggedPastThreshold(false);
-    };
-
-    if (isDragging) {
-      window.addEventListener('mousemove', handleMove);
-      window.addEventListener('mouseup', handleEnd);
-      window.addEventListener('touchmove', handleMove, { passive: true });
-      window.addEventListener('touchend', handleEnd);
-    }
-    return () => {
-      window.removeEventListener('mousemove', handleMove);
-      window.removeEventListener('mouseup', handleEnd);
-      window.removeEventListener('touchmove', handleMove);
-      window.removeEventListener('touchend', handleEnd);
-    };
-  }, [isDragging, dragOffset, dragStartPos, hasDraggedPastThreshold, DRAG_THRESHOLD]);
 
   const showMainContent = phase === 'main';
 
@@ -1005,13 +1042,14 @@ export default function Home() {
     <div
       className="popup-window"
       onMouseDown={() => setActiveWindow(windowId)}
-      onTouchStart={() => setActiveWindow(windowId)}
       style={{
         position: 'fixed',
         top: position.y || '50%',
         left: position.x || '50%',
         transform: position.x || position.y ? 'none' : 'translate(-50%, -50%)',
         zIndex: activeWindow === windowId ? 160 : 150,
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
       }}
     >
       <div
@@ -1021,19 +1059,22 @@ export default function Home() {
           borderColor: '#ffffff #0a0a0a #0a0a0a #ffffff',
           boxShadow: '1px 1px 0 #000',
           width,
+          minWidth: width,
+          maxWidth: width,
         }}
       >
+        {/* Titlebar - only this is draggable */}
         <div
-          onMouseDown={(e) => handleDragStart(e, 'welcome')}
-          onTouchStart={(e) => handleDragStart(e, 'welcome')}
+          onMouseDown={(e) => { e.preventDefault(); handleDragStart(e, windowId); }}
+          onTouchStart={(e) => { e.preventDefault(); handleDragStart(e, windowId); }}
           style={{
             background: 'linear-gradient(90deg, #000080, #1084d0)',
-            padding: '3px 4px',
+            padding: '6px 6px',
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            cursor: isDragging === 'welcome' ? 'grabbing' : 'grab',
-            userSelect: 'none',
+            cursor: isDragging === windowId ? 'grabbing' : 'grab',
+            touchAction: 'none',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
@@ -1052,23 +1093,22 @@ export default function Home() {
             onTouchStart={(e) => e.stopPropagation()}
             onTouchEnd={(e) => e.stopPropagation()}
             style={{
-              width: '24px',
-              height: '22px',
-              fontSize: '14px',
-              fontWeight: 'bold',
+              width: '20px',
+              height: '18px',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               cursor: 'pointer',
               padding: 0,
-              fontFamily: 'Arial, sans-serif',
-              color: '#000',
-              lineHeight: 1,
               touchAction: 'manipulation',
-              ...win95Button,
+              backgroundColor: '#c0c0c0',
+              border: 'none',
+              boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #dfdfdf',
             }}
           >
-            ×
+            <svg width="10" height="9" viewBox="0 0 8 7" fill="none">
+              <path d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z" fill="#000"/>
+            </svg>
           </button>
         </div>
         <div style={{ padding: '16px 20px' }}>
@@ -1413,10 +1453,6 @@ export default function Home() {
               className={activeSection === 'about' ? '' : 'nav-cli'}
               onClick={() => {
                 setActiveSection(activeSection === 'about' ? null : 'about');
-                if (showWelcomePopup) {
-                  setShowWelcomePopup(false);
-                  setShowNotification(true);
-                }
               }}
               style={{
                 fontFamily: winFont,
@@ -1433,10 +1469,6 @@ export default function Home() {
               className={activeSection === 'shop' ? '' : 'nav-cli'}
               onClick={() => {
                 setActiveSection(activeSection === 'shop' ? null : 'shop');
-                if (showWelcomePopup) {
-                  setShowWelcomePopup(false);
-                  setShowNotification(true);
-                }
               }}
               style={{
                 fontFamily: winFont,
@@ -1455,23 +1487,23 @@ export default function Home() {
 
       {/* Welcome Popup - Win95 style with 2-step flow */}
       {showWelcomePopup && (
-        <Win95Popup title={t.welcomeTitle} onClose={handleCloseWelcome} position={welcomePos} width="300px">
+        <Win95Popup title={t.welcomeTitle} onClose={handleCloseWelcome} position={welcomePos} width="250px">
           {welcomeStep === 'message' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', width: '100%' }}>
-                <Image src="/smiley.png" alt=":)" width={48} height={48} style={{ minWidth: '48px', flexShrink: 0, marginTop: '8px', animation: 'none', imageRendering: 'pixelated' }} unoptimized priority />
-                <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', lineHeight: '1.5', wordBreak: 'break-word', overflow: 'hidden' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', minWidth: '200px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
+                <Image src="/smiley.svg" alt=":)" width={48} height={48} style={{ flexShrink: 0 }} />
+                <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', lineHeight: '1.4', minWidth: '140px' }}>
                   {scrambledWelcomeMsg || t.welcomeMessage}
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', width: '100%' }}>
                 <button
                   onClick={handleWelcomeOk}
                   onMouseDown={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
                   onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleWelcomeOk(); }}
                   className="win-btn"
-                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 20px', cursor: 'pointer', ...win95Button }}
+                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 20px', minWidth: '50px', cursor: 'pointer', ...win95Button }}
                 >
                   {t.ok}
                 </button>
@@ -1481,9 +1513,9 @@ export default function Home() {
                   onTouchStart={(e) => e.stopPropagation()}
                   onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleCloseWelcome(); }}
                   className="win-btn"
-                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 16px', cursor: 'pointer', ...win95Button }}
+                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
                 >
-                  {t.close}
+                  {scrambledClose || t.close}
                 </button>
               </div>
             </div>
@@ -1545,9 +1577,9 @@ export default function Home() {
                     onTouchStart={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleCloseWelcome(); }}
                     className="win-btn"
-                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 16px', cursor: 'pointer', ...win95Button }}
+                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
                   >
-                    {t.cancel}
+                    {scrambledCancel || t.cancel}
                   </button>
                 </div>
               </form>
@@ -1664,27 +1696,27 @@ export default function Home() {
                 onClick={(e) => { e.stopPropagation(); setActiveSection(null); setAboutPos({ x: 0, y: 0 }); }}
                 onMouseDown={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
                 style={{
-                  width: '20px',
-                  height: '18px',
+                  width: '28px',
+                  height: '26px',
                   backgroundColor: '#c0c0c0',
                   border: 'none',
                   boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
                   cursor: 'pointer',
-                  fontFamily: 'Arial, sans-serif',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   padding: 0,
-                  lineHeight: 1,
+                  touchAction: 'manipulation',
                 }}
               >
-                ×
+                <svg width="10" height="9" viewBox="0 0 8 7" fill="none">
+                  <path d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z" fill="#000"/>
+                </svg>
               </button>
             </div>
-            <div style={{ padding: '0 clamp(16px, 5vw, 28px) clamp(16px, 4vw, 24px)', overflow: 'hidden' }}>
+            <div style={{ padding: '10px clamp(16px, 5vw, 28px) clamp(28px, 4vw, 36px)', overflow: 'hidden' }}>
               <p style={{ wordBreak: 'break-word' }}>
                 <span style={{ backgroundColor: '#000080', color: '#fff', padding: '2px 6px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' }}>superself</span> {scrambledAboutText || t.aboutText}
               </p>
@@ -1731,28 +1763,30 @@ export default function Home() {
               padding: '6px 6px 0 6px',
             }}>
               <button
-                onClick={() => setActiveSection(null)}
+                onClick={(e) => { e.stopPropagation(); setActiveSection(null); }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => e.stopPropagation()}
                 style={{
-                  width: '20px',
-                  height: '18px',
+                  width: '28px',
+                  height: '26px',
                   backgroundColor: '#c0c0c0',
                   border: 'none',
                   boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
                   cursor: 'pointer',
-                  fontFamily: 'Arial, sans-serif',
-                  fontSize: '14px',
-                  fontWeight: 'bold',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                   padding: 0,
-                  lineHeight: 1,
+                  touchAction: 'manipulation',
                 }}
               >
-                ×
+                <svg width="10" height="9" viewBox="0 0 8 7" fill="none">
+                  <path d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z" fill="#000"/>
+                </svg>
               </button>
             </div>
-            <div style={{ padding: '0 clamp(16px, 5vw, 28px) clamp(16px, 4vw, 24px)' }}>
+            <div style={{ padding: '10px clamp(16px, 5vw, 28px) clamp(28px, 4vw, 36px)' }}>
               {(scrambledShopMsg || t.shopMessage).replace('...', '')}<span style={{ display: 'inline-block', width: '1.5em', textAlign: 'left' }}>{shopDots}</span>
             </div>
           </div>
@@ -1902,6 +1936,83 @@ export default function Home() {
         >
           <span className="blink-slow" style={{ fontSize: '0.75em' }}>▶</span>
           <span>{t.skip}</span>
+        </div>
+      )}
+
+      {/* Landscape/aspect ratio warning overlay */}
+      {showLandscapeWarning && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: '#0000FF',
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#c0c0c0',
+              border: '2px solid',
+              borderColor: '#ffffff #0a0a0a #0a0a0a #ffffff',
+              boxShadow: '2px 2px 0 #000',
+              maxWidth: '90vw',
+            }}
+          >
+            <div
+              style={{
+                background: 'linear-gradient(90deg, #000080, #1084d0)',
+                padding: '3px 4px 3px 8px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+              }}
+            >
+              <span style={{ color: 'white', fontFamily: 'Segoe UI, Tahoma, sans-serif', fontSize: '11px', fontWeight: 700 }}>
+                {t.warningTitle}
+              </span>
+              <button
+                disabled
+                style={{
+                  width: '16px',
+                  height: '14px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  cursor: 'not-allowed',
+                  padding: 0,
+                  backgroundColor: '#c0c0c0',
+                  border: 'none',
+                  boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #dfdfdf',
+                }}
+              >
+                <svg width="8" height="7" viewBox="0 0 8 7" fill="none">
+                  <path d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z" fill="#808080"/>
+                </svg>
+              </button>
+            </div>
+            <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+              <svg width="32" height="29" viewBox="0 0 32 29" fill="none" style={{ flexShrink: 0, marginTop: '2px' }}>
+                {/* Gray shadow */}
+                <path d="M18 4H20V5H21V6H22V8H23V10H24V12H25V14H26V16H27V18H28V20H29V22H30V26H29V27H6V26H7V25H27V24H26V22H25V20H24V18H23V16H22V14H21V12H20V10H19V8H18V4Z" fill="#808080"/>
+                {/* Black outline */}
+                <path d="M14 2H18V4H19V6H20V8H21V10H22V12H23V14H24V16H25V18H26V20H27V24H4V20H5V18H6V16H7V14H8V12H9V10H10V8H11V6H12V4H13V2H14Z" fill="#000"/>
+                {/* Yellow fill */}
+                <path d="M15 4H17V6H18V8H19V10H20V12H21V14H22V16H23V18H24V20H25V22H6V20H7V18H8V16H9V14H10V12H11V10H12V8H13V6H14V4H15Z" fill="#FFFF00"/>
+                {/* Exclamation mark */}
+                <rect x="15" y="8" width="2" height="8" fill="#000"/>
+                <rect x="15" y="18" width="2" height="2" fill="#000"/>
+              </svg>
+              <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
+                {t.warningMessage}
+              </span>
+            </div>
+          </div>
         </div>
       )}
     </main>
