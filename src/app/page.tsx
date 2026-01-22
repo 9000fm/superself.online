@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import Image from "next/image";
 import LoadingDots from "./LoadingDots";
 import AsciiArt, { AsciiArtRef } from "./AsciiArt";
+import Shop from "./components/Shop";
+import { CONTACT, SCRAMBLE_CHARS, WIN_FONT, FRAME_INSETS, WIN95_STYLES } from "./constants";
 
 type Phase = 'boot' | 'loading' | 'pause' | 'confirm' | 'shutdown' | 'off' | 'main';
 type Language = 'ES' | 'EN' | 'JP';
@@ -34,8 +36,8 @@ const translations = {
     about: '> acerca',
     shop: '> tienda',
     welcomeTitle: 'superself.exe',
-    welcomeMessage: 'Se encontro una invitacion activa.',
-    ok: 'OK',
+    welcomeMessage: 'Se encontro una invitacion pendiente.',
+    ok: 'Abrir',
     aboutTitle: 'acerca.txt',
     aboutText: '(2023) es un sello y colectivo de música electrónica. Compartimos mixes, recomendaciones selectas y música original. Nos mueve apoyar proyectos con identidad, acercar artistas a oyentes reales y fomentar una cultura de colaboración. Sonido primero. Poco floro. Energía real.',
     close: 'Cerrar',
@@ -47,11 +49,11 @@ const translations = {
     emailCopied: 'email copiado',
     invalidEmail: 'ingresa un email válido',
     subscribe: 'suscribirse',
-    subscribePrompt: 'Ingresa tu e-mail para suscribirte! :)',
+    subscribePrompt: 'Ingresa tu e-mail para unirte. :)',
     emailPlaceholder: 'tu@email.com',
     subscribed: '¡suscrito!',
     subscribedMessage: 'Gracias por suscribirte',
-    confirm: 'Confirmar',
+    confirm: 'Enviar',
     cancel: 'Cancelar',
     skip: 'saltar',
     warningTitle: 'Mensaje del sistema',
@@ -66,8 +68,8 @@ const translations = {
     about: '> about',
     shop: '> shop',
     welcomeTitle: 'superself.exe',
-    welcomeMessage: 'Active invitation found.',
-    ok: 'OK',
+    welcomeMessage: 'Pending invitation found.',
+    ok: 'Open',
     aboutTitle: 'about.txt',
     aboutText: '(2023) is an electronic music label and collective. We share mixes, curated recommendations and original music. We support projects with identity, bring artists closer to real listeners and foster a culture of collaboration. Sound first. Less talk. Real energy.',
     close: 'Close',
@@ -79,11 +81,11 @@ const translations = {
     emailCopied: 'email copied',
     invalidEmail: 'enter a valid email',
     subscribe: 'subscribe',
-    subscribePrompt: 'Enter your e-mail to subscribe.',
+    subscribePrompt: 'Enter your e-mail to join. :)',
     emailPlaceholder: 'your@email.com',
     subscribed: 'subscribed!',
     subscribedMessage: 'Thanks for subscribing',
-    confirm: 'Confirm',
+    confirm: 'Send',
     cancel: 'Cancel',
     skip: 'skip',
     warningTitle: 'System message',
@@ -98,8 +100,8 @@ const translations = {
     about: '> 概要',
     shop: '> 店舗',
     welcomeTitle: 'superself.exe',
-    welcomeMessage: '招待が見つかりました。',
-    ok: 'OK',
+    welcomeMessage: '保留中の招待があります。',
+    ok: '開く',
     aboutTitle: '概要.txt',
     aboutText: '(2023) は電子音楽レーベル＆コレクティブ。ミックス、厳選レコメンド、オリジナル音楽を共有。個性あるプロジェクトを支援し、アーティストと本物のリスナーを繋ぎ、コラボ文化を育む。サウンド優先。余計な言葉なし。リアルなエネルギー。',
     close: '閉じる',
@@ -111,11 +113,11 @@ const translations = {
     emailCopied: 'コピーしました',
     invalidEmail: '有効なメールを入力',
     subscribe: '登録',
-    subscribePrompt: 'メールを入力して登録。',
+    subscribePrompt: 'メールを入力して参加。:)',
     emailPlaceholder: 'メール@例.com',
     subscribed: '登録完了!',
     subscribedMessage: '登録ありがとう',
-    confirm: '確認',
+    confirm: '送信',
     cancel: 'キャンセル',
     skip: 'スキップ',
     warningTitle: 'システムメッセージ',
@@ -155,9 +157,7 @@ export default function Home() {
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [showSubscribedPopup, setShowSubscribedPopup] = useState(false);
   const [welcomeStep, setWelcomeStep] = useState<'message' | 'subscribe'>('message');
-  const [shopDots, setShopDots] = useState('');
   const [aboutHasTyped, setAboutHasTyped] = useState(false);
-  const [showMobileMenu, setShowMobileMenu] = useState(false);
 
   // Ref for ASCII art ripple creation
   const asciiRef = useRef<AsciiArtRef>(null);
@@ -165,8 +165,9 @@ export default function Home() {
   // Popup positioning (draggable popups)
   const [welcomePos, setWelcomePos] = useState({ x: 0, y: 0 });
   const [aboutPos, setAboutPos] = useState({ x: 0, y: 0 });
+  const [shopPos, setShopPos] = useState({ x: 0, y: 0 });
   // Track which window is on top (like real Windows)
-  const [activeWindow, setActiveWindow] = useState<'welcome' | 'about' | null>(null);
+  const [activeWindow, setActiveWindow] = useState<'welcome' | 'about' | 'shop' | null>(null);
   const [isDragging, setIsDragging] = useState<string | null>(null);
 
   // Menu dropdown state
@@ -195,6 +196,9 @@ export default function Home() {
   const [scrambledShopMsg, setScrambledShopMsg] = useState('');
   const [scrambledClose, setScrambledClose] = useState('');
   const [scrambledCancel, setScrambledCancel] = useState('');
+  const [scrambledOk, setScrambledOk] = useState('');
+  const [scrambledConfirm, setScrambledConfirm] = useState('');
+  const [scrambledSubscribePrompt, setScrambledSubscribePrompt] = useState('');
   const prevMainLangRef = useRef<Language>(language);
   const [rebootCount, setRebootCount] = useState(0);
 
@@ -237,11 +241,8 @@ export default function Home() {
   // Ref to track all active timers/intervals for proper cleanup
   const confirmTimersRef = useRef<{ timers: NodeJS.Timeout[], intervals: NodeJS.Timeout[] }>({ timers: [], intervals: [] });
 
-  // Scramble effect characters (used in multiple places)
-  // Include Japanese katakana for smoother JP scramble effect
-  const scrambleCharsBase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
-  const scrambleCharsJP = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
-  const scrambleChars = language === 'JP' ? scrambleCharsJP : scrambleCharsBase;
+  // Scramble effect characters - use imported constants
+  const scrambleChars = language === 'JP' ? SCRAMBLE_CHARS.japanese : SCRAMBLE_CHARS.base;
 
   // Reset confirm screen state when language changes during confirm phase
   // This ensures the typing animation restarts with the new language
@@ -790,6 +791,7 @@ export default function Home() {
       // Step 5: Show welcome popup
       const welcomeTimer = setTimeout(() => {
         setShowWelcomePopup(true);
+        setActiveWindow('welcome'); // Bring to front
       }, timings.popup);
 
       return () => {
@@ -832,6 +834,9 @@ export default function Home() {
       const newShopMsg = t.shopMessage;
       const newClose = t.close;
       const newCancel = t.cancel;
+      const newOk = t.ok;
+      const newConfirm = t.confirm;
+      const newSubscribePrompt = t.subscribePrompt;
 
       isMainLangScramblingRef.current = true;
 
@@ -868,6 +873,9 @@ export default function Home() {
         setScrambledShopMsg(scrambleText(newShopMsg));
         setScrambledClose(scrambleText(newClose));
         setScrambledCancel(scrambleText(newCancel));
+        setScrambledOk(scrambleText(newOk));
+        setScrambledConfirm(scrambleText(newConfirm));
+        setScrambledSubscribePrompt(scrambleText(newSubscribePrompt));
 
         if (frame >= maxFrames) {
           // Final values - clear scrambled states to show actual translations
@@ -880,12 +888,31 @@ export default function Home() {
           setScrambledShopMsg('');
           setScrambledClose('');
           setScrambledCancel('');
+          setScrambledOk('');
+          setScrambledConfirm('');
+          setScrambledSubscribePrompt('');
           clearInterval(scrambleInterval);
           isMainLangScramblingRef.current = false;
         }
       }, 40);
 
-      return () => clearInterval(scrambleInterval);
+      return () => {
+        clearInterval(scrambleInterval);
+        // Reset all scrambled states to show actual translations if interrupted
+        setScrambledAbout('');
+        setScrambledShop('');
+        setScrambledMessage('');
+        setScrambledCopyright('');
+        setScrambledWelcomeMsg('');
+        setScrambledAboutText('');
+        setScrambledShopMsg('');
+        setScrambledClose('');
+        setScrambledCancel('');
+        setScrambledOk('');
+        setScrambledConfirm('');
+        setScrambledSubscribePrompt('');
+        isMainLangScramblingRef.current = false;
+      };
     }
   }, [language, phase, t, scrambleChars]);
 
@@ -902,16 +929,6 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // Shop dots animation
-  useEffect(() => {
-    if (activeSection === 'shop') {
-      setShopDots('');
-      const interval = setInterval(() => {
-        setShopDots(prev => prev.length >= 3 ? '' : prev + dotChar);
-      }, 400);
-      return () => clearInterval(interval);
-    }
-  }, [activeSection, dotChar]);
 
 
   // About typing effect - only types once per session, not on every open
@@ -954,13 +971,15 @@ export default function Home() {
       const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
 
       // If popup is centered (position is 0,0), convert to absolute position first
-      const currentPos = popupId === 'welcome' ? welcomePos : aboutPos;
+      const currentPos = popupId === 'welcome' ? welcomePos : popupId === 'shop' ? shopPos : aboutPos;
       if (currentPos.x === 0 && currentPos.y === 0) {
         const initialPos = { x: rect.left, y: rect.top };
         if (popupId === 'welcome') {
           setWelcomePos(initialPos);
         } else if (popupId === 'about') {
           setAboutPos(initialPos);
+        } else if (popupId === 'shop') {
+          setShopPos(initialPos);
         }
       }
 
@@ -981,6 +1000,8 @@ export default function Home() {
           setWelcomePos(newPos);
         } else if (popupId === 'about') {
           setAboutPos(newPos);
+        } else if (popupId === 'shop') {
+          setShopPos(newPos);
         }
       };
 
@@ -1006,22 +1027,17 @@ export default function Home() {
 
   const showMainContent = phase === 'main';
 
-  // Windows 95 style button
-  const win95Button = {
-    backgroundColor: '#c0c0c0',
-    border: 'none',
-    boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
-  };
+  // Windows 95 style button - use imported constant
+  const win95Button = WIN95_STYLES.button;
 
-  // Classic Windows font - VT323 loaded via CSS variable, fallbacks for system fonts
-  const winFont = 'var(--font-terminal), VT323, Fixedsys, Terminal, Consolas, monospace';
+  // Classic Windows font - use imported constant
+  const winFont = WIN_FONT;
 
-  // Frame and content insets with safe-area support for iOS
-  // Tighter margins on mobile (30px min vs 60px max)
-  const frameInset = 'max(clamp(30px, 5vw, 60px), env(safe-area-inset-top, 0px))';
-  const frameInsetBottom = 'max(clamp(30px, 5vw, 60px), env(safe-area-inset-bottom, 0px))';
-  const contentInset = 'max(clamp(45px, 7vw, 80px), env(safe-area-inset-top, 0px))';
-  const contentInsetBottom = 'max(clamp(45px, 7vw, 80px), env(safe-area-inset-bottom, 0px))';
+  // Frame and content insets with safe-area support for iOS - use imported constants
+  const frameInset = FRAME_INSETS.frame;
+  const frameInsetBottom = FRAME_INSETS.frameBottom;
+  const contentInset = FRAME_INSETS.content;
+  const contentInsetBottom = FRAME_INSETS.contentBottom;
 
   // Win95 popup component (only used for welcome popup now)
   const Win95Popup = ({
@@ -1037,7 +1053,7 @@ export default function Home() {
     onClose: () => void;
     position: { x: number; y: number };
     width?: string;
-    windowId?: 'welcome' | 'about';
+    windowId?: 'welcome' | 'about' | 'shop';
   }) => (
     <div
       className="popup-window"
@@ -1077,13 +1093,13 @@ export default function Home() {
             touchAction: 'none',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ marginTop: '-1px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', flex: 1 }}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ marginTop: '-1px', flexShrink: 0 }}>
               <rect x="1" y="3" width="14" height="10" fill="#c0c0c0" stroke="#000" strokeWidth="1"/>
               <rect x="3" y="5" width="10" height="6" fill="#000080"/>
               <rect x="0" y="12" width="16" height="3" fill="#808080"/>
             </svg>
-            <span style={{ color: 'white', fontFamily: 'Segoe UI, Tahoma, sans-serif', fontSize: '11px', fontWeight: 600 }}>
+            <span style={{ color: 'white', fontFamily: 'Segoe UI, Tahoma, sans-serif', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}>
               {title}
             </span>
           </div>
@@ -1306,11 +1322,11 @@ export default function Home() {
       <div
         style={{
           position: 'absolute',
-          top: contentInset,
+          top: `calc(${contentInset} - 10px)`,
           left: contentInset,
           display: showMainContent ? 'block' : 'none',
           fontFamily: winFont,
-          fontSize: 'clamp(2.25rem, 7.5vw, 3.75rem)',
+          fontSize: 'clamp(3rem, 9vw, 5rem)',
           color: 'white',
           visibility: showTitlePrompt ? 'visible' : 'hidden',
           cursor: 'pointer',
@@ -1506,9 +1522,9 @@ export default function Home() {
                   onTouchStart={(e) => e.stopPropagation()}
                   onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleWelcomeOk(); }}
                   className="win-btn"
-                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 20px', minWidth: '50px', cursor: 'pointer', ...win95Button }}
+                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
                 >
-                  {t.ok}
+                  {scrambledOk || t.ok}
                 </button>
                 <button
                   onClick={handleCloseWelcome}
@@ -1531,7 +1547,7 @@ export default function Home() {
                   <rect x="3" y="6" width="18" height="12" fill="none" stroke="#fff" strokeWidth="0.5"/>
                 </svg>
                 <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', textAlign: 'left', lineHeight: '1.5' }}>
-                  {t.subscribePrompt}
+                  {scrambledSubscribePrompt || t.subscribePrompt}
                 </span>
               </div>
               <form onSubmit={handleSubscribe} style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
@@ -1572,7 +1588,7 @@ export default function Home() {
                     className="win-btn"
                     style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 24px', cursor: 'pointer', ...win95Button }}
                   >
-                    {isSubscribed ? t.subscribed : t.confirm}
+                    {isSubscribed ? t.subscribed : (scrambledConfirm || t.confirm)}
                   </button>
                   <button
                     type="button"
@@ -1728,72 +1744,17 @@ export default function Home() {
         </div>
       )}
 
-      {/* Shop Panel - MS-DOS Editor style */}
+      {/* Shop Panel - Modern interactive shop */}
       {activeSection === 'shop' && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 90,
-            pointerEvents: 'none',
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            style={{
-              backgroundColor: '#a8a8a8',
-              border: '2px solid #000',
-              boxShadow: '4px 4px 0 rgba(0,0,0,0.5)',
-              fontFamily: winFont,
-              fontSize: 'clamp(0.85rem, 2.5vw, 1rem)',
-              color: '#000',
-              width: '280px',
-              maxWidth: '85vw',
-              textAlign: 'center',
-              position: 'relative',
-              pointerEvents: 'auto',
-            }}
-          >
-            <div style={{
-              display: 'flex',
-              justifyContent: 'flex-end',
-              padding: '6px 6px 0 6px',
-            }}>
-              <button
-                onClick={(e) => { e.stopPropagation(); setActiveSection(null); }}
-                onMouseDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => e.stopPropagation()}
-                style={{
-                  width: '22px',
-                  height: '20px',
-                  backgroundColor: '#c0c0c0',
-                  border: 'none',
-                  boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 0,
-                  touchAction: 'manipulation',
-                }}
-              >
-                <svg width="10" height="9" viewBox="0 0 8 7" fill="none">
-                  <path d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z" fill="#000"/>
-                </svg>
-              </button>
-            </div>
-            <div style={{ padding: '10px clamp(16px, 5vw, 28px) clamp(28px, 4vw, 36px)' }}>
-              {(scrambledShopMsg || t.shopMessage).replace('...', '')}<span style={{ display: 'inline-block', width: '1.5em', textAlign: 'left' }}>{shopDots}</span>
-            </div>
-          </div>
-        </div>
+        <Shop
+          language={language}
+          onClose={() => { setActiveSection(null); setShopPos({ x: 0, y: 0 }); }}
+          position={shopPos}
+          isActive={activeWindow === 'shop'}
+          onActivate={() => setActiveWindow('shop')}
+          onDragStart={(e) => handleDragStart(e, 'shop')}
+          isDragging={isDragging === 'shop'}
+        />
       )}
 
       {/* Email copied toast - appears at cursor */}
@@ -1841,7 +1802,7 @@ export default function Home() {
       {/* Bottom Left - Notification reminder */}
       {showNotification && (
         <div
-          onClick={() => { setShowWelcomePopup(true); setShowNotification(false); }}
+          onClick={() => { setShowWelcomePopup(true); setShowNotification(false); setActiveWindow('welcome'); }}
           style={{
             position: 'absolute',
             bottom: contentInsetBottom,
@@ -1874,7 +1835,7 @@ export default function Home() {
           fontSize: 'clamp(1rem, 2.5vw, 1.15rem)',
           opacity: (phase === 'confirm' && confirmLangVisible) || (phase === 'main' && showFooter) ? 1 : 0,
           transition: 'opacity 0.6s ease-in-out',
-          zIndex: 200,
+          zIndex: 50,
           pointerEvents: 'auto',
         }}
       >
