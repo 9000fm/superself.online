@@ -7,7 +7,7 @@ import AsciiArt, { AsciiArtRef } from "./AsciiArt";
 import Shop from "./components/Shop";
 import { CONTACT, SCRAMBLE_CHARS, WIN_FONT, FRAME_INSETS, WIN95_STYLES } from "./constants";
 
-type Phase = 'boot' | 'loading' | 'pause' | 'confirm' | 'shutdown' | 'off' | 'main';
+type Phase = 'boot' | 'loading' | 'pause' | 'confirm' | 'shutdown' | 'off' | 'error' | 'main';
 type Language = 'ES' | 'EN' | 'JP';
 
 // Isolated spinner component to prevent re-renders on main component
@@ -58,6 +58,10 @@ const translations = {
     skip: 'saltar',
     warningTitle: 'Mensaje del sistema',
     warningMessage: 'El tamano de pantalla puede afectar la experiencia.\nGira el dispositivo o redimensiona la ventana.',
+    errorTitle: 'ERROR',
+    errorException: 'Ha ocurrido una excepcion fatal 0E en',
+    errorTerminated: 'La aplicacion actual sera terminada.',
+    errorPressKey: 'Presiona cualquier tecla para continuar',
   },
   EN: {
     welcome: 'WELCOME.',
@@ -90,6 +94,10 @@ const translations = {
     skip: 'skip',
     warningTitle: 'System message',
     warningMessage: 'Screen size may affect the experience.\nRotate device or resize window.',
+    errorTitle: 'ERROR',
+    errorException: 'A fatal exception 0E has occured at',
+    errorTerminated: 'The current application will be terminated.',
+    errorPressKey: 'Press any key to continue',
   },
   JP: {
     welcome: 'ようこそ。',
@@ -122,6 +130,10 @@ const translations = {
     skip: 'スキップ',
     warningTitle: 'システムメッセージ',
     warningMessage: '画面サイズが体験に影響する可能性があります。\nデバイスを回転またはリサイズ。',
+    errorTitle: 'エラー',
+    errorException: '致命的な例外 0E が発生しました',
+    errorTerminated: '現在のアプリケーションは終了します。',
+    errorPressKey: '続行するには何かキーを押してください',
   },
 };
 
@@ -129,13 +141,14 @@ export default function Home() {
   const [phase, setPhase] = useState<Phase>('boot');
   const [showLogo, setShowLogo] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
-  const [language, setLanguage] = useState<Language>('ES');
+  const [language, setLanguage] = useState<Language>('EN');
   const t = translations[language];
   // Japanese uses middle dot (・) instead of period for animated dots
   const dotChar = language === 'JP' ? '・' : '.';
 
   const [selectedOption, setSelectedOption] = useState<'yes' | 'no'>('yes');
   const [showWelcomePopup, setShowWelcomePopup] = useState(false);
+  const [errorCode, setErrorCode] = useState('');
 
   // Main content entrance sequence
   const [showFrame, setShowFrame] = useState(false);
@@ -176,6 +189,8 @@ export default function Home() {
 
   // Shutdown animation
   const [shutdownText, setShutdownText] = useState('');
+  const [shutdownDots, setShutdownDots] = useState('');
+  const [fadeFromBlack, setFadeFromBlack] = useState(false);
 
   // Skip mode for fast entrance
   const [skipMode, setSkipMode] = useState(false);
@@ -421,62 +436,54 @@ export default function Home() {
         setPhase('main');
       }, 1600);
     } else {
-      // Start shutdown sequence
+      // Start shutdown sequence - will trigger useEffect for typing animation
+      setShutdownText('');
+      setShutdownDots('');
       setPhase('shutdown');
-      const shutBase = t.shuttingDown;
+    }
+  };
 
-      // 2 full passes + first dot of third pass, then shutdown
-      const d = dotChar;
-      const dotTimings = [
-        { text: shutBase, delay: 0 },
-        { text: shutBase + d, delay: 400 },
-        { text: shutBase + d + d, delay: 800 },
-        { text: shutBase + d + d + d, delay: 1200 },
-        { text: shutBase, delay: 1800 },
-        { text: shutBase + d, delay: 2200 },
-        { text: shutBase + d + d, delay: 2600 },
-        { text: shutBase + d + d + d, delay: 3000 },
-        { text: shutBase, delay: 3600 },
-        { text: shutBase + d, delay: 4000 }, // 7th dot - shutdown after this
-      ];
+  // Reboot handler - shows black screen, fades to blue, pauses, then restarts
+  const handleReboot = () => {
+    // First go to black screen (abrupt, no fade)
+    setFadeFromBlack(false);
+    setPhase('off');
 
-      dotTimings.forEach(({ text, delay }) => {
-        setTimeout(() => setShutdownText(text), delay);
-      });
+    // After 4 seconds of black, fade to blue
+    setTimeout(() => {
+      // Reset all state first
+      setTypedWelcome('');
+      setWelcomeDots('');
+      setTypedConfirm('');
+      setTypedYes('');
+      setTypedNo('');
+      setShowSelector(false);
+      setConfirmLangVisible(false);
+      setSelectedOption('yes');
+      setShowWelcomePopup(false);
+      setActiveSection(null);
+      setShowNotification(false);
+      setShowMenuDropdown(false);
+      setBurgerVisible(false);
+      setShowLogo(false);
+      setShowLoader(false);
+      setShowFrame(false);
+      setShowTitlePrompt(false);
+      setTypedTitle('');
+      setShowTitleCursor(false);
+      setShowFooter(false);
 
-      // Go to black screen
+      // Enable fade transition and go to pause phase (just blue, no content)
+      setFadeFromBlack(true);
+      setPhase('pause');
+
+      // After fade completes + pause on blue, start boot sequence
       setTimeout(() => {
-        setPhase('off');
-      }, 4600);
-
-      // Brief pause on black, then snap to blue and start boot sequence
-      setTimeout(() => {
-        // Reset everything and reboot
-        setTypedWelcome('');
-        setWelcomeDots('');
-        setTypedConfirm('');
-        setTypedYes('');
-        setTypedNo('');
-        setShowSelector(false);
-        setConfirmLangVisible(false);
-        setSelectedOption('yes');
-        setShowWelcomePopup(false);
-        setActiveSection(null);
-        setShowNotification(false);
-        setShowMenuDropdown(false);
-        setBurgerVisible(false);
-        setShowLogo(false);
-        setShowLoader(false);
-        // Reset entrance sequence
-        setShowFrame(false);
-        setShowTitlePrompt(false);
-        setTypedTitle('');
-        setShowTitleCursor(false);
-        setShowFooter(false);
+        setFadeFromBlack(false);
         setRebootCount(c => c + 1);
         setPhase('boot');
-      }, 6200);
-    }
+      }, 1500);
+    }, 4000);
   };
 
   // Skip to main handler - elegant transition
@@ -711,6 +718,82 @@ export default function Home() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [phase, selectedOption, showSelector]);
+
+  // Shutdown typing effect - types out "shutting down" then animates dots
+  useEffect(() => {
+    if (phase !== 'shutdown') return;
+
+    const shutdownBaseText = t.shuttingDown;
+    const d = dotChar;
+    let charIndex = 0;
+    const timers: NodeJS.Timeout[] = [];
+    const intervals: NodeJS.Timeout[] = [];
+
+    // Wait a moment before starting to type
+    const startDelay = setTimeout(() => {
+      // Type out each character
+      const typeInterval = setInterval(() => {
+      if (charIndex < shutdownBaseText.length) {
+        setShutdownText(shutdownBaseText.slice(0, charIndex + 1));
+        charIndex++;
+      } else {
+        clearInterval(typeInterval);
+
+        // After typing complete, animate dots
+        let dotCount = 0;
+        let dotCycle = 0;
+        const dotsInterval = setInterval(() => {
+          dotCount++;
+          if (dotCount > 3) {
+            dotCount = 1;
+            dotCycle++;
+          }
+          setShutdownDots(d.repeat(dotCount));
+
+          // After 2 full cycles, go to error screen
+          if (dotCycle >= 2 && dotCount === 3) {
+            clearInterval(dotsInterval);
+            timers.push(setTimeout(() => {
+              setPhase('error');
+            }, 400));
+          }
+        }, 350);
+        intervals.push(dotsInterval);
+      }
+    }, 60);
+    intervals.push(typeInterval);
+    }, 600); // Wait 600ms before starting to type
+    timers.push(startDelay);
+
+    return () => {
+      timers.forEach(t => clearTimeout(t));
+      intervals.forEach(i => clearInterval(i));
+    };
+  }, [phase, t.shuttingDown, dotChar]);
+
+  // BSOD error screen - generate random error code and listen for any key/click to reboot
+  useEffect(() => {
+    if (phase !== 'error') return;
+
+    // Generate random hex error code
+    const randomHex = () => Math.floor(Math.random() * 0xFFFFFFFF).toString(16).toUpperCase().padStart(8, '0');
+    setErrorCode(`0028:${randomHex().slice(0, 8)} in VXD VMM(01) + ${randomHex().slice(0, 8)}`);
+
+    const handleRebootTrigger = () => {
+      handleReboot();
+    };
+
+    // Listen for any key or click/tap
+    window.addEventListener('keydown', handleRebootTrigger);
+    window.addEventListener('click', handleRebootTrigger);
+    window.addEventListener('touchstart', handleRebootTrigger);
+
+    return () => {
+      window.removeEventListener('keydown', handleRebootTrigger);
+      window.removeEventListener('click', handleRebootTrigger);
+      window.removeEventListener('touchstart', handleRebootTrigger);
+    };
+  }, [phase]);
 
   // Main content entrance sequence - frame first, then title scramble
   // Uses faster timings when skipMode is enabled
@@ -1146,7 +1229,7 @@ export default function Home() {
         backgroundColor: phase === 'off' ? '#000' : '#0000FF',
         margin: 0,
         padding: 0,
-        transition: phase === 'off' ? 'background-color 0.3s' : 'none',
+        transition: fadeFromBlack ? 'background-color 0.8s ease-out' : 'none',
       }}
     >
       {/* Single line frame border */}
@@ -1300,19 +1383,76 @@ export default function Home() {
       <div
         style={{
           position: 'absolute',
-          top: '50%',
+          top: '45%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
           display: phase === 'shutdown' ? 'block' : 'none',
           fontFamily: winFont,
           color: 'white',
-          fontSize: 'clamp(1.2rem, 4vw, 1.8rem)',
-          textAlign: 'center',
+          fontSize: 'clamp(1.4rem, 5vw, 2.2rem)',
+          textAlign: 'left',
+          width: 'clamp(280px, 70vw, 450px)',
+          letterSpacing: '0.05em',
           textTransform: 'uppercase',
-          letterSpacing: '0.1em',
         }}
       >
-        {shutdownText}
+        {shutdownText}{shutdownDots}<span className="blink">_</span>
+      </div>
+
+      {/* === BSOD ERROR SCREEN === */}
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          display: phase === 'error' ? 'flex' : 'none',
+          flexDirection: 'column',
+          alignItems: 'center',
+          fontFamily: winFont,
+          color: 'white',
+          width: 'clamp(320px, 90vw, 650px)',
+          textAlign: 'center',
+        }}
+      >
+        {/* ERROR header box */}
+        <div
+          style={{
+            backgroundColor: '#C0C0C0',
+            color: '#0000FF',
+            padding: '0.2em 0.5em',
+            marginBottom: '2.5rem',
+            fontSize: 'clamp(1.3rem, 4vw, 1.8rem)',
+            letterSpacing: '0.15em',
+            fontWeight: 'bold',
+          }}
+        >
+          {t.errorTitle}
+        </div>
+
+        {/* Error message */}
+        <div
+          style={{
+            fontSize: 'clamp(1.2rem, 4vw, 1.6rem)',
+            lineHeight: 1.8,
+            letterSpacing: '0.03em',
+          }}
+        >
+          {t.errorException}<br />
+          {errorCode}.<br />
+          {t.errorTerminated}
+        </div>
+
+        {/* Press any key */}
+        <div
+          style={{
+            marginTop: '3rem',
+            fontSize: 'clamp(1.2rem, 4vw, 1.6rem)',
+            letterSpacing: '0.03em',
+          }}
+        >
+          {t.errorPressKey}<span className="blink">_</span>
+        </div>
       </div>
 
       {/* === MAIN CONTENT === */}
