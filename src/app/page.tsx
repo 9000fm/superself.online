@@ -53,25 +53,6 @@ export default function Home() {
   const [showLogo, setShowLogo] = useState(false);
   const [showLoader, setShowLoader] = useState(false);
   const [language, setLanguage] = useState<Language>('ES');
-  
-  // Auto-detect language from browser on mount
-  useEffect(() => {
-    const detectLanguage = (): Language => {
-      if (typeof navigator === 'undefined') return 'ES';
-      
-      const browserLang = navigator.language.toLowerCase().slice(0, 2);
-      
-      switch (browserLang) {
-        case 'es': return 'ES';
-        case 'en': return 'EN';
-        case 'ja': return 'JP';
-        default: return 'ES'; // Default to Spanish
-      }
-    };
-    
-    setLanguage(detectLanguage());
-  }, []);
-  
   const t = translations[language];
 
   // Popup/section states
