@@ -98,8 +98,8 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
   const PUDDLE_START_R_FRAC = 0.008;
   const PUDDLE_MAX_R_FRAC = 0.06;
   const PUDDLE_GROW_FRAMES = 20;
-  const WHITE_DIM_OPACITY = 0.15;
-  const WHITE_NORMAL_OPACITY = 0.4;
+  const WHITE_BASE_OPACITY = 0.4;
+  const WHITE_PULSE_AMOUNT = 0.02;  // pulses up to 0.42
   const BLUE_MAX_OPACITY = 0.55;
   const OPACITY_LERP = 0.10;
 
@@ -389,14 +389,14 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
         pressHoldTimeRef.current = Math.max(pressHoldTimeRef.current - 2 * dtNorm, 0);
       }
 
-      // Opacity lerps: dim white and brighten blue while pressing
-      const targetWhiteOpacity = pressing ? WHITE_DIM_OPACITY : WHITE_NORMAL_OPACITY;
+      // --- White: ambient pulse (not press-driven) ---
+      const t = performance.now() * 0.001;
+      const pulse = Math.sin(t * 0.7) * 0.5 + Math.sin(t * 1.1) * 0.3 + Math.sin(t * 0.3) * 0.2;
+      whiteOpacityRef.current = WHITE_BASE_OPACITY + pulse * WHITE_PULSE_AMOUNT;
+
+      // --- Blue: still press-driven ---
       const targetBlueOpacity = pressing ? BLUE_MAX_OPACITY : 0;
-      const fadeInLerp = OPACITY_LERP;
-      const fadeOutLerp = 0.08; // Phase 4b: slower recovery (was 0.25)
-      const whLerp = 1 - Math.pow(1 - (pressing ? fadeInLerp : fadeOutLerp), dtNorm);
-      const blLerp = 1 - Math.pow(1 - (pressing ? fadeInLerp : fadeOutLerp), dtNorm);
-      whiteOpacityRef.current += (targetWhiteOpacity - whiteOpacityRef.current) * whLerp;
+      const blLerp = 1 - Math.pow(1 - (pressing ? OPACITY_LERP : 0.08), dtNorm);
       blueOpacityRef.current += (targetBlueOpacity - blueOpacityRef.current) * blLerp;
 
       // Snap blue to 0 when negligible
