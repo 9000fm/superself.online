@@ -21,6 +21,13 @@ interface TrailPoint {
   intensity: number;
 }
 
+interface ScatterParticle {
+  x: number; y: number;
+  vx: number; vy: number;
+  life: number;
+  char: string;
+}
+
 // Pre-calculated sine lookup table (360 values)
 const SINE_TABLE: number[] = [];
 for (let i = 0; i < 360; i++) {
@@ -61,6 +68,7 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
   const isPressingRef = useRef(false);
   const trailRef = useRef<TrailPoint[]>([]);
   const afterglowRef = useRef({ x: -1, y: -1, life: 0 });
+  const scatterRef = useRef<ScatterParticle[]>([]);
   const isTouchDeviceRef = useRef(false);
 
   // Momentum/inertia refs
@@ -94,6 +102,13 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
   const WHITE_NORMAL_OPACITY = 0.4;
   const BLUE_MAX_OPACITY = 0.55;
   const OPACITY_LERP = 0.10;
+
+  // Scatter particle constants
+  const SCATTER_COUNT = 12;
+  const SCATTER_SPEED = 1.5;
+  const SCATTER_FRICTION = 0.94;
+  const SCATTER_DECAY = 0.025;
+  const SCATTER_CHARS = ['\u2588', '\u2593', '\u2592', '#', '*', '+'];
 
   // Convert client coordinates to grid coordinates
   const clientToGrid = useCallback((clientX: number, clientY: number): { x: number; y: number } => {
@@ -345,6 +360,24 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
           y: pointerRef.current.y,
           life: 1.0,
         };
+
+        // Spawn scatter particles
+        const sx = pointerRef.current.x;
+        const sy = pointerRef.current.y;
+        const vx0 = velocityRef.current.vx;
+        const vy0 = velocityRef.current.vy;
+        for (let i = 0; i < SCATTER_COUNT; i++) {
+          const angle = Math.random() * Math.PI * 2;
+          const speed = SCATTER_SPEED * (0.7 + Math.random() * 0.6);
+          scatterRef.current.push({
+            x: sx, y: sy,
+            vx: Math.cos(angle) * speed + vx0 * 0.3,
+            vy: Math.sin(angle) * speed + vy0 * 0.3,
+            life: 1.0,
+            char: SCATTER_CHARS[Math.floor(Math.random() * SCATTER_CHARS.length)],
+          });
+        }
+
         pointerRef.current = { x: -100, y: -100 };
         prevPointerRef.current = { x: -1, y: -1 };
       }
@@ -414,6 +447,21 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
         }
       }
 
+      // Scatter particle physics
+      scatterRef.current = scatterRef.current
+        .map(p => {
+          const frictionFactor = Math.pow(SCATTER_FRICTION, dtNorm);
+          return {
+            ...p,
+            x: p.x + p.vx * dtNorm,
+            y: p.y + p.vy * dtNorm,
+            vx: p.vx * frictionFactor,
+            vy: p.vy * frictionFactor,
+            life: p.life - SCATTER_DECAY * dtNorm,
+          };
+        })
+        .filter(p => p.life > 0 && p.x >= -2 && p.x < width + 2 && p.y >= -2 && p.y < height + 2);
+
       rafId = requestAnimationFrame(tick);
     };
 
@@ -451,8 +499,22 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
     const whiteOpacity = whiteOpacityRef.current;
     const blueOpacity = blueOpacityRef.current;
 
+    // Scatter particle lookup
+    const scatter = scatterRef.current;
+    const scatterMap = new Map<string, { char: string; life: number }>();
+    for (const p of scatter) {
+      const rx = Math.round(p.x);
+      const ry = Math.round(p.y);
+      const key = `${rx},${ry}`;
+      const existing = scatterMap.get(key);
+      if (!existing || p.life > existing.life) {
+        scatterMap.set(key, { char: p.char, life: p.life });
+      }
+    }
+    const hasScatter = scatterMap.size > 0;
+
     // Puddle radius: ease-out growth curve
-    const { gridDiag, trailRadius, agRadius, puddleStartR, puddleMaxR } = gridMetrics;
+    const { trailRadius, agRadius, puddleStartR, puddleMaxR } = gridMetrics;
     const growT = Math.min(pressHoldTimeRef.current / PUDDLE_GROW_FRAMES, 1);
     const easedGrowth = 1 - (1 - growT) * (1 - growT);
     const puddleR = puddleStartR + (puddleMaxR - puddleStartR) * easedGrowth;
@@ -528,12 +590,19 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
         const inPuddle = showBlue && distToPointer < puddleR;
 
         // White layer: ALWAYS render normally (no holes)
-        const sparkleChar = sparkleMap.get(`${x},${y}`);
-        if (sparkleChar) {
-          whiteLine += sparkleChar;
+        const scatterHit = hasScatter ? scatterMap.get(`${x},${y}`) : undefined;
+        if (scatterHit) {
+          // Scatter particle overrides cell — boost brightness by life
+          value = Math.min(1, value + scatterHit.life * 0.6);
+          whiteLine += scatterHit.char;
         } else {
-          const blockIdx = (value * BLOCKS_LEN) | 0;
-          whiteLine += BLOCKS[blockIdx < 0 ? 0 : blockIdx > BLOCKS_LEN ? BLOCKS_LEN : blockIdx];
+          const sparkleChar = sparkleMap.get(`${x},${y}`);
+          if (sparkleChar) {
+            whiteLine += sparkleChar;
+          } else {
+            const blockIdx = (value * BLOCKS_LEN) | 0;
+            whiteLine += BLOCKS[blockIdx < 0 ? 0 : blockIdx > BLOCKS_LEN ? BLOCKS_LEN : blockIdx];
+          }
         }
 
         // Blue layer: puddle char if in zone, space otherwise
