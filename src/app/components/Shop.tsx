@@ -2,7 +2,8 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import { products, shopTranslations, getProductName, getWhatsAppLink, type Language, type Product } from '../data/products';
+import { products, shopTranslations, getProductName, getWhatsAppLink } from '../data/products';
+import type { Language } from '../types';
 import { WIN_FONT, WIN95_STYLES, SCRAMBLE_CHARS } from '../constants';
 
 interface ShopProps {

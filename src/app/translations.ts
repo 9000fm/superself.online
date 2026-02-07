@@ -106,7 +106,7 @@ export const translations: Record<Language, TranslationKeys> = {
     warningTitle: 'System message',
     warningMessage: 'Screen size may affect the experience.\nRotate device or resize window.',
     errorTitle: 'ERROR',
-    errorException: 'A fatal exception 0E has occured at',
+    errorException: 'A fatal exception 0E has occurred at',
     errorTerminated: 'The current application will be terminated.',
     errorPressKey: 'Press any key to continue',
   },

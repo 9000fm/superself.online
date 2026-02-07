@@ -83,7 +83,7 @@ export const shopTranslations = {
   },
 } as const;
 
-export type Language = 'ES' | 'EN' | 'JP';
+import type { Language } from '../types';
 
 export function getProductName(product: Product, language: Language): string {
   switch (language) {

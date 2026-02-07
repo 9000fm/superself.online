@@ -7,6 +7,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'failed' }, { status: 400 });
   }
 
+  const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailRegex.test(email)) {
+    return NextResponse.json({ error: 'invalid_email' }, { status: 400 });
+  }
+
   const apiKey = process.env.BUTTONDOWN_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: 'failed' }, { status: 500 });

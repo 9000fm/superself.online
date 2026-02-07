@@ -183,10 +183,10 @@ export default function Home() {
     }
   }, [phase, rebootCount]);
 
-  const handleLoadingComplete = () => {
+  const handleLoadingComplete = useCallback(() => {
     setPhase('pause');
     setTimeout(() => setPhase('confirm'), 800);
-  };
+  }, []);
 
   // Skip handler
   const handleSkip = () => {
@@ -276,6 +276,7 @@ export default function Home() {
 
       if (data.success) {
         setSubscribeEmail('');
+        setIsSubscribed(true);
         setShowWelcomePopup(false);
         setWelcomeStep('message');
         setShowSubscribedPopup(true);
@@ -312,7 +313,9 @@ export default function Home() {
       setAboutTypingComplete(false);
 
       let currentIndex = 0;
+      let cancelled = false;
       const typeNextChar = () => {
+        if (cancelled) return;
         if (currentIndex < fullText.length) {
           setTypedAboutText(fullText.substring(0, currentIndex + 1));
           currentIndex++;
@@ -324,7 +327,10 @@ export default function Home() {
       };
 
       const startDelay = setTimeout(typeNextChar, 300);
-      return () => clearTimeout(startDelay);
+      return () => {
+        cancelled = true;
+        clearTimeout(startDelay);
+      };
     }
   }, [activeSection, aboutHasTyped, t]);
 
@@ -457,16 +463,36 @@ export default function Home() {
 
       {/* Center - ASCII Art */}
       <div
-        onClick={(e) => {
+        onMouseMove={(e) => {
+          asciiRef.current?.handlePointerMove(e.clientX, e.clientY);
+        }}
+        onMouseDown={(e) => {
           if (e.target === e.currentTarget) {
-            asciiRef.current?.createRipple(e.clientX, e.clientY);
+            asciiRef.current?.handlePointerDown(e.clientX, e.clientY);
           }
+        }}
+        onMouseUp={(e) => {
+          asciiRef.current?.handlePointerUp(e.clientX, e.clientY);
+        }}
+        onMouseLeave={(e) => {
+          asciiRef.current?.handlePointerUp(e.clientX, e.clientY);
+          asciiRef.current?.handlePointerLeave();
         }}
         onTouchStart={(e) => {
           if (e.target === e.currentTarget && e.touches.length > 0) {
             e.preventDefault();
-            asciiRef.current?.createRipple(e.touches[0].clientX, e.touches[0].clientY);
+            asciiRef.current?.handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+            asciiRef.current?.handlePointerDown(e.touches[0].clientX, e.touches[0].clientY);
           }
+        }}
+        onTouchMove={(e) => {
+          if (e.touches.length > 0) {
+            asciiRef.current?.handlePointerMove(e.touches[0].clientX, e.touches[0].clientY);
+          }
+        }}
+        onTouchEnd={(e) => {
+          const touch = e.changedTouches[0];
+          asciiRef.current?.handlePointerUp(touch?.clientX ?? 0, touch?.clientY ?? 0);
         }}
         style={{
           position: 'absolute',
@@ -713,33 +739,40 @@ export default function Home() {
 
       {/* Subscribed confirmation popup */}
       {showSubscribedPopup && (
-        <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%, -50%)', zIndex: 160 }}>
-          <div style={{ backgroundColor: '#c0c0c0', border: '2px solid', borderColor: '#ffffff #0a0a0a #0a0a0a #ffffff', boxShadow: '1px 1px 0 #000', width: '280px' }}>
-            <div style={{ background: 'linear-gradient(90deg, #000080, #1084d0)', padding: '3px 4px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ marginTop: '-1px' }}>
-                  <rect x="1" y="3" width="14" height="10" fill="#c0c0c0" stroke="#000" strokeWidth="1" />
-                  <rect x="3" y="5" width="10" height="6" fill="#000080" />
-                  <rect x="0" y="12" width="16" height="3" fill="#808080" />
-                </svg>
-                <span style={{ color: 'white', fontFamily: 'Segoe UI, Tahoma, sans-serif', fontSize: '11px', fontWeight: 600 }}>superself.exe</span>
-              </div>
+        <Win95Popup
+          title="superself.exe"
+          onClose={() => { setShowSubscribedPopup(false); setShowNotification(true); }}
+          position={draggable.welcomePos}
+          width="280px"
+          windowId="welcome"
+          activeWindow={activeWindow}
+          onActivate={() => setActiveWindow('welcome')}
+          onDragStart={(e) => draggable.handleDragStart(e, 'welcome')}
+          isDragging={draggable.isDragging === 'welcome'}
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
+              <svg width="40" height="40" viewBox="0 0 32 32" fill="none" style={{ flexShrink: 0 }}>
+                <rect x="2" y="2" width="28" height="28" fill="#c0c0c0" stroke="#808080" strokeWidth="1" />
+                <rect x="3" y="3" width="26" height="26" fill="none" stroke="#fff" strokeWidth="1" />
+                <path d="M9 16 L14 21 L23 11" stroke="#000080" strokeWidth="3" fill="none" strokeLinecap="square" />
+              </svg>
+              <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', lineHeight: '1.4' }}>
+                {t.subscribedMessage}
+              </span>
             </div>
-            <div style={{ padding: '20px 24px', textAlign: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginBottom: '16px' }}>
-                <span style={{ fontSize: '24px' }}>✓</span>
-                <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '12px', color: '#000' }}>{t.subscribedMessage}</span>
-              </div>
-              <button
-                onClick={() => { setShowSubscribedPopup(false); setShowNotification(true); }}
-                className="win-btn"
-                style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '4px 24px', cursor: 'pointer', ...win95Button }}
-              >
-                {t.ok}
-              </button>
-            </div>
+            <button
+              onClick={() => { setShowSubscribedPopup(false); setShowNotification(true); }}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
+              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setShowSubscribedPopup(false); setShowNotification(true); }}
+              className="win-btn"
+              style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
+            >
+              {t.ok}
+            </button>
           </div>
-        </div>
+        </Win95Popup>
       )}
 
       {/* About Panel */}

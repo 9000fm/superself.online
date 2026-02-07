@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Phase, Language } from '../types';
 import { translations, getDotChar } from '../translations';
 
@@ -31,6 +31,7 @@ export function useShutdownSequence({
   const [shutdownDots, setShutdownDots] = useState('');
   const [errorCode, setErrorCode] = useState('');
   const [fadeFromBlack, setFadeFromBlack] = useState(false);
+  const rebootTimers = useRef<NodeJS.Timeout[]>([]);
 
   const startShutdown = useCallback(() => {
     setShutdownText('');
@@ -39,23 +40,36 @@ export function useShutdownSequence({
   }, [onPhaseChange]);
 
   const handleReboot = useCallback(() => {
+    // Clear any existing reboot timers
+    rebootTimers.current.forEach(t => clearTimeout(t));
+    rebootTimers.current = [];
+
     // First go to black screen (abrupt, no fade)
     setFadeFromBlack(false);
     onPhaseChange('off');
 
     // After 4 seconds of black, fade to blue
-    setTimeout(() => {
+    const t1 = setTimeout(() => {
       // Enable fade transition and go to pause phase (just blue, no content)
       setFadeFromBlack(true);
       onPhaseChange('pause');
 
       // After fade completes + pause on blue, trigger reboot
-      setTimeout(() => {
+      const t2 = setTimeout(() => {
         setFadeFromBlack(false);
         onRebootComplete();
       }, 1500);
+      rebootTimers.current.push(t2);
     }, 4000);
+    rebootTimers.current.push(t1);
   }, [onPhaseChange, onRebootComplete]);
+
+  // Clean up reboot timers on unmount
+  useEffect(() => {
+    return () => {
+      rebootTimers.current.forEach(t => clearTimeout(t));
+    };
+  }, []);
 
   // Shutdown typing effect
   useEffect(() => {
