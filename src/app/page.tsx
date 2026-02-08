@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import Image from 'next/image';
+import { Leva } from 'leva';
 import LoadingDots from './LoadingDots';
 import AsciiArt, { AsciiArtRef } from './AsciiArt';
 
@@ -32,10 +33,18 @@ import {
   Shop,
 } from './components';
 
+// Lazy-load VJ Panel
+const VJPanel = React.lazy(() => import('./components/VJPanel'));
+
 // Isolated spinner component to prevent re-renders on main component
-function Spinner() {
+function Spinner({ vjActive, onActivate }: { vjActive?: boolean; onActivate?: () => void }) {
   const [frame, setFrame] = useState(0);
   const chars = ['|', '/', '-', '\\'];
+
+  // Triple-click detection
+  const clickTimesRef = useRef<number[]>([]);
+  // Long-press detection
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -44,7 +53,47 @@ function Spinner() {
     return () => clearInterval(interval);
   }, []);
 
-  return <span>{chars[frame]}</span>;
+  const handleClick = useCallback(() => {
+    if (!onActivate) return;
+    const now = Date.now();
+    clickTimesRef.current.push(now);
+    // Keep only clicks within last 1 second
+    clickTimesRef.current = clickTimesRef.current.filter(t => now - t < 1000);
+    if (clickTimesRef.current.length >= 3) {
+      clickTimesRef.current = [];
+      onActivate();
+    }
+  }, [onActivate]);
+
+  const handleTouchStart = useCallback(() => {
+    if (!onActivate) return;
+    longPressRef.current = setTimeout(() => {
+      onActivate();
+      longPressRef.current = null;
+    }, 800);
+  }, [onActivate]);
+
+  const handleTouchEnd = useCallback(() => {
+    if (longPressRef.current) {
+      clearTimeout(longPressRef.current);
+      longPressRef.current = null;
+    }
+  }, []);
+
+  return (
+    <span
+      onClick={handleClick}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchEnd}
+      style={{
+        cursor: 'pointer',
+        color: vjActive ? 'rgba(0, 0, 255, 0.6)' : undefined,
+      }}
+    >
+      {chars[frame]}
+    </span>
+  );
 }
 
 export default function Home() {
@@ -86,6 +135,11 @@ export default function Home() {
   const [isReplaying, setIsReplaying] = useState(false);
   const [replayTrigger, setReplayTrigger] = useState(0);
   const [rebootCount, setRebootCount] = useState(0);
+
+  // VJ Panel state
+  const [showVJPanel, setShowVJPanel] = useState(false);
+  const [vjConfigOverrides, setVjConfigOverrides] = useState<Partial<import('./AsciiArt').Config> | undefined>(undefined);
+  const [vjPalette, setVjPalette] = useState<string | undefined>(undefined);
 
   // Landscape warning
   const [showLandscapeWarning, setShowLandscapeWarning] = useState(false);
@@ -299,6 +353,7 @@ export default function Home() {
         setShowWelcomePopup(false);
         setActiveSection(null);
         setShowMenuDropdown(false);
+        setShowVJPanel(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -334,9 +389,15 @@ export default function Home() {
     }
   }, [activeSection, aboutHasTyped, t]);
 
+  const handleVJToggle = useCallback(() => {
+    setShowVJPanel(prev => !prev);
+  }, []);
+
   const showMainContent = phase === 'main';
 
   return (
+    <>
+    {process.env.NODE_ENV === 'development' && <Leva collapsed />}
     <main
       style={{
         position: 'fixed',
@@ -508,7 +569,7 @@ export default function Home() {
           cursor: 'crosshair',
         }}
       >
-        <AsciiArt ref={asciiRef} color="white" isVisible={entrance.showFooter} />
+        <AsciiArt ref={asciiRef} color="white" isVisible={entrance.showFooter} configOverrides={vjConfigOverrides} paletteOverride={vjPalette} />
       </div>
 
       {/* Social icons */}
@@ -978,7 +1039,7 @@ export default function Home() {
         }}
       >
         <span style={{ fontFamily: winFont, fontSize: 'clamp(0.6rem, 1.2vw, 0.75rem)', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>
-          {'{ superself '}<Spinner />{` 2026 - ${scrambled.copyright || t.allRightsReserved} }`}
+          {'{ superself '}<Spinner vjActive={showVJPanel} onActivate={handleVJToggle} />{` 2026 - ${scrambled.copyright || t.allRightsReserved} }`}
         </span>
       </div>
 
@@ -1003,6 +1064,17 @@ export default function Home() {
           <span className="blink-slow" style={{ fontSize: '0.75em' }}>▶</span>
           <span>{confirmScreen.scrambledSkip || t.skip}</span>
         </div>
+      )}
+
+      {/* VJ Panel */}
+      {showVJPanel && (
+        <Suspense fallback={null}>
+          <VJPanel
+            onConfigChange={setVjConfigOverrides}
+            onPaletteChange={setVjPalette}
+            onClose={() => setShowVJPanel(false)}
+          />
+        </Suspense>
       )}
 
       {/* Landscape warning */}
@@ -1078,5 +1150,6 @@ export default function Home() {
         </div>
       )}
     </main>
+    </>
   );
 }
