@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
-import { useControls, folder, button } from 'leva';
 
 interface AsciiArtProps {
   color?: string;
@@ -118,7 +117,7 @@ export const DEFAULTS = {
   // Opacity
   whiteBaseOpacity: 0.66,
   whitePulseAmount: 0.02,
-  blueMaxOpacity: 0.55,
+  blueMaxOpacity: 0,
   opacityLerp: 0.10,
   blueReleaseLerp: 0.08,
   // Scatter
@@ -175,104 +174,24 @@ export const DEFAULTS = {
   // Overlay color
   overlayHue: 240,
   // Density
-  fontSizeMultiplier: 1.0,
+  fontSizeMultiplier: 1.15,
   // Master speed
   masterSpeed: 1.0,
 } as const;
 
 export type Config = typeof DEFAULTS;
 
-// Slider min/max ranges for randomization (module-level to avoid re-creation)
-const RANGES: Record<string, { min: number; max: number }> = {
-  blobHoverIntensity: { min: 0, max: 3 },
-  blobPressIntensity: { min: 0, max: 3 },
-  blobLerp: { min: 0.01, max: 0.5 },
-  blobFadeLerp: { min: 0.01, max: 0.5 },
-  blobBirthRadiusThreshold: { min: 0.1, max: 3 },
-  blobBirthIntensityThreshold: { min: 0.001, max: 0.1 },
-  friction: { min: 0.8, max: 0.99 },
-  minVelocity: { min: 0.05, max: 2 },
-  pointerLerpRate: { min: 0.05, max: 0.8 },
-  puddleStartRFrac: { min: 0.001, max: 0.05 },
-  puddleMaxRFrac: { min: 0.01, max: 0.2 },
-  puddleGrowFrames: { min: 1, max: 60 },
-  whiteBaseOpacity: { min: 0, max: 1 },
-  whitePulseAmount: { min: 0, max: 0.2 },
-  blueMaxOpacity: { min: 0, max: 1 },
-  opacityLerp: { min: 0.01, max: 0.5 },
-  blueReleaseLerp: { min: 0.01, max: 0.5 },
-  scatterCount: { min: 1, max: 40 },
-  scatterSpeed: { min: 0.1, max: 5 },
-  scatterFriction: { min: 0.8, max: 0.99 },
-  scatterDecay: { min: 0.005, max: 0.1 },
-  scatterVelocityInheritance: { min: 0, max: 1 },
-  scatterValueBoost: { min: 0, max: 2 },
-  trailSpawnDistance: { min: 0.5, max: 5 },
-  trailMaxLength: { min: 10, max: 200 },
-  trailDecayPress: { min: 0.005, max: 0.1 },
-  trailExpDecayBase: { min: 0.9, max: 0.999 },
-  trailLinearDecayFloor: { min: 0, max: 0.02 },
-  trailIntensityMultiplier: { min: 0.1, max: 2 },
-  afterglowDecay: { min: 0.001, max: 0.05 },
-  afterglowMorphAmp1: { min: 0, max: 5 },
-  afterglowMorphAmp2: { min: 0, max: 5 },
-  afterglowIntensity: { min: 0, max: 1 },
-  sparkleSpawnChance: { min: 0, max: 1 },
-  sparkleMaxCount: { min: 5, max: 100 },
-  sparkleDecayRate: { min: 0.01, max: 0.2 },
-  sparkleVisibilityThreshold: { min: 0, max: 1 },
-  trailRadiusFrac: { min: 0.01, max: 0.15 },
-  afterglowRadiusFrac: { min: 0.01, max: 0.15 },
-  blobHoverRadiusFrac: { min: 0.02, max: 0.2 },
-  blobPressRadiusFrac: { min: 0.005, max: 0.1 },
-  waveFreq1: { min: 1, max: 20 },
-  wavePhase1ny: { min: 0, max: 10 },
-  waveFreq2: { min: 1, max: 20 },
-  wavePhase2ny: { min: 0, max: 10 },
-  waveFreq3ny: { min: 1, max: 20 },
-  wavePhase3nx: { min: 0, max: 10 },
-  waveMix1: { min: 0, max: 1 },
-  waveMix2: { min: 0, max: 1 },
-  waveMix3: { min: 0, max: 1 },
-  waveSpeed1: { min: 0.01, max: 0.2 },
-  waveSpeed2: { min: 0.01, max: 0.2 },
-  waveSpeed3: { min: 0.01, max: 0.2 },
-  centerFadeFalloff: { min: 0.05, max: 1 },
-  pulseFreq1: { min: 0.1, max: 3 },
-  pulseFreq2: { min: 0.1, max: 3 },
-  pulseFreq3: { min: 0.1, max: 3 },
-  pulseMix1: { min: 0, max: 1 },
-  pulseMix2: { min: 0, max: 1 },
-  pulseMix3: { min: 0, max: 1 },
-  overlayHue: { min: 0, max: 360 },
-  fontSizeMultiplier: { min: 0.7, max: 1.5 },
-  masterSpeed: { min: 0, max: 2 },
-};
-
-const INTEGER_KEYS = new Set(['scatterCount','puddleGrowFrames','trailMaxLength','sparkleMaxCount']);
-
-function randomizeSection(keys: string[], set: (v: Record<string, unknown>) => void) {
-  const r: Record<string, number> = {};
-  for (const k of keys) {
-    const rng = RANGES[k];
-    if (!rng) continue;
-    let v = rng.min + Math.random() * (rng.max - rng.min);
-    if (INTEGER_KEYS.has(k)) v = Math.round(v);
-    r[k] = v;
-  }
-  set(r);
-}
-
 export interface AsciiArtRef {
   handlePointerDown: (clientX: number, clientY: number) => void;
   handlePointerMove: (clientX: number, clientY: number) => void;
   handlePointerUp: (clientX: number, clientY: number) => void;
   handlePointerLeave: () => void;
+  getContainer: () => HTMLDivElement | null;
 }
 
 const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ color = 'white', isVisible = true, configOverrides, paletteOverride }, ref) {
   const [frame, setFrame] = useState(0);
-  const [sparkles, setSparkles] = useState<Sparkle[]>([]);
+  const sparklesRef = useRef<Sparkle[]>([]);
   const [gridSize, setGridSize] = useState({ width: 180, height: 120 });
   const [fontSize, setFontSize] = useState(10);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -302,136 +221,8 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
   const whiteOpacityRef = useRef(0.66);
   const blueOpacityRef = useRef(0);
 
-  // ─── Leva dev controls (tree-shaken in production) ───
-  let config: Config;
-  let activePaletteKey: string = DEFAULT_PALETTE;
-  if (process.env.NODE_ENV === 'development') {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [values, set] = useControls(() => ({
-      Actions: folder({
-        'Randomize All': button(() => {
-          const allKeys = Object.keys(RANGES);
-          randomizeSection(allKeys, set);
-          // Also randomize palette
-          const keys = PALETTE_KEYS.filter(k => k !== paletteRef.current.key);
-          set({ palette: keys[Math.floor(Math.random() * keys.length)] });
-        }),
-        'Random Palette': button(() => {
-          const keys = PALETTE_KEYS.filter(k => k !== paletteRef.current.key);
-          const pick = keys[Math.floor(Math.random() * keys.length)];
-          set({ palette: pick });
-        }),
-        'Copy to Clipboard': button((get) => {
-          const lines: string[] = ['const DEFAULTS = {'];
-          for (const key of Object.keys(DEFAULTS)) {
-            lines.push(`  ${key}: ${get(key)},`);
-          }
-          lines.push('} as const;');
-          lines.push('');
-          lines.push(`// Palette: '${get('palette')}'`);
-          navigator.clipboard.writeText(lines.join('\n'));
-        }),
-        'Reset to Defaults': button(() => {
-          set({ ...DEFAULTS, palette: DEFAULT_PALETTE });
-        }),
-      }, { collapsed: false }),
-      palette: { value: DEFAULT_PALETTE, options: PALETTE_KEYS, label: 'Palette' },
-      Blob: folder({
-        blobHoverIntensity: { value: DEFAULTS.blobHoverIntensity, min: 0, max: 3, step: 0.05 },
-        blobPressIntensity: { value: DEFAULTS.blobPressIntensity, min: 0, max: 3, step: 0.05 },
-        blobLerp: { value: DEFAULTS.blobLerp, min: 0.01, max: 0.5, step: 0.01 },
-        blobFadeLerp: { value: DEFAULTS.blobFadeLerp, min: 0.01, max: 0.5, step: 0.01 },
-        blobBirthRadiusThreshold: { value: DEFAULTS.blobBirthRadiusThreshold, min: 0.1, max: 3, step: 0.1 },
-        blobBirthIntensityThreshold: { value: DEFAULTS.blobBirthIntensityThreshold, min: 0.001, max: 0.1, step: 0.001 },
-      }, { collapsed: true }),
-      Physics: folder({
-        masterSpeed: { value: DEFAULTS.masterSpeed, min: 0, max: 2, step: 0.05 },
-        friction: { value: DEFAULTS.friction, min: 0.8, max: 0.99, step: 0.01 },
-        minVelocity: { value: DEFAULTS.minVelocity, min: 0.05, max: 2, step: 0.05 },
-        pointerLerpRate: { value: DEFAULTS.pointerLerpRate, min: 0.05, max: 0.8, step: 0.01 },
-      }, { collapsed: true }),
-      Puddle: folder({
-        puddleStartRFrac: { value: DEFAULTS.puddleStartRFrac, min: 0.001, max: 0.05, step: 0.001 },
-        puddleMaxRFrac: { value: DEFAULTS.puddleMaxRFrac, min: 0.01, max: 0.2, step: 0.005 },
-        puddleGrowFrames: { value: DEFAULTS.puddleGrowFrames, min: 1, max: 60, step: 1 },
-      }, { collapsed: true }),
-      Opacity: folder({
-        whiteBaseOpacity: { value: DEFAULTS.whiteBaseOpacity, min: 0, max: 1, step: 0.01 },
-        whitePulseAmount: { value: DEFAULTS.whitePulseAmount, min: 0, max: 0.2, step: 0.005 },
-        blueMaxOpacity: { value: DEFAULTS.blueMaxOpacity, min: 0, max: 1, step: 0.01 },
-        opacityLerp: { value: DEFAULTS.opacityLerp, min: 0.01, max: 0.5, step: 0.01 },
-        blueReleaseLerp: { value: DEFAULTS.blueReleaseLerp, min: 0.01, max: 0.5, step: 0.01 },
-      }, { collapsed: true }),
-      Scatter: folder({
-        scatterCount: { value: DEFAULTS.scatterCount, min: 1, max: 40, step: 1 },
-        scatterSpeed: { value: DEFAULTS.scatterSpeed, min: 0.1, max: 5, step: 0.1 },
-        scatterFriction: { value: DEFAULTS.scatterFriction, min: 0.8, max: 0.99, step: 0.01 },
-        scatterDecay: { value: DEFAULTS.scatterDecay, min: 0.005, max: 0.1, step: 0.005 },
-        scatterVelocityInheritance: { value: DEFAULTS.scatterVelocityInheritance, min: 0, max: 1, step: 0.05 },
-        scatterValueBoost: { value: DEFAULTS.scatterValueBoost, min: 0, max: 2, step: 0.05 },
-      }, { collapsed: true }),
-      Trail: folder({
-        trailSpawnDistance: { value: DEFAULTS.trailSpawnDistance, min: 0.5, max: 5, step: 0.1 },
-        trailMaxLength: { value: DEFAULTS.trailMaxLength, min: 10, max: 200, step: 5 },
-        trailDecayPress: { value: DEFAULTS.trailDecayPress, min: 0.005, max: 0.1, step: 0.005 },
-        trailExpDecayBase: { value: DEFAULTS.trailExpDecayBase, min: 0.9, max: 0.999, step: 0.001 },
-        trailLinearDecayFloor: { value: DEFAULTS.trailLinearDecayFloor, min: 0, max: 0.02, step: 0.001 },
-        trailIntensityMultiplier: { value: DEFAULTS.trailIntensityMultiplier, min: 0.1, max: 2, step: 0.05 },
-      }, { collapsed: true }),
-      Afterglow: folder({
-        afterglowDecay: { value: DEFAULTS.afterglowDecay, min: 0.001, max: 0.05, step: 0.001 },
-        afterglowMorphAmp1: { value: DEFAULTS.afterglowMorphAmp1, min: 0, max: 5, step: 0.1 },
-        afterglowMorphAmp2: { value: DEFAULTS.afterglowMorphAmp2, min: 0, max: 5, step: 0.1 },
-        afterglowIntensity: { value: DEFAULTS.afterglowIntensity, min: 0, max: 1, step: 0.01 },
-      }, { collapsed: true }),
-      Sparkles: folder({
-        sparkleSpawnChance: { value: DEFAULTS.sparkleSpawnChance, min: 0, max: 1, step: 0.05 },
-        sparkleMaxCount: { value: DEFAULTS.sparkleMaxCount, min: 5, max: 100, step: 1 },
-        sparkleDecayRate: { value: DEFAULTS.sparkleDecayRate, min: 0.01, max: 0.2, step: 0.01 },
-        sparkleVisibilityThreshold: { value: DEFAULTS.sparkleVisibilityThreshold, min: 0, max: 1, step: 0.05 },
-      }, { collapsed: true }),
-      'Grid Radii': folder({
-        trailRadiusFrac: { value: DEFAULTS.trailRadiusFrac, min: 0.01, max: 0.15, step: 0.005 },
-        afterglowRadiusFrac: { value: DEFAULTS.afterglowRadiusFrac, min: 0.01, max: 0.15, step: 0.005 },
-        blobHoverRadiusFrac: { value: DEFAULTS.blobHoverRadiusFrac, min: 0.02, max: 0.2, step: 0.005 },
-        blobPressRadiusFrac: { value: DEFAULTS.blobPressRadiusFrac, min: 0.005, max: 0.1, step: 0.005 },
-      }, { collapsed: true }),
-      Waves: folder({
-        waveFreq1: { value: DEFAULTS.waveFreq1, min: 1, max: 20, step: 0.5 },
-        wavePhase1ny: { value: DEFAULTS.wavePhase1ny, min: 0, max: 10, step: 0.5 },
-        waveFreq2: { value: DEFAULTS.waveFreq2, min: 1, max: 20, step: 0.5 },
-        wavePhase2ny: { value: DEFAULTS.wavePhase2ny, min: 0, max: 10, step: 0.5 },
-        waveFreq3ny: { value: DEFAULTS.waveFreq3ny, min: 1, max: 20, step: 0.5 },
-        wavePhase3nx: { value: DEFAULTS.wavePhase3nx, min: 0, max: 10, step: 0.5 },
-        waveMix1: { value: DEFAULTS.waveMix1, min: 0, max: 1, step: 0.05 },
-        waveMix2: { value: DEFAULTS.waveMix2, min: 0, max: 1, step: 0.05 },
-        waveMix3: { value: DEFAULTS.waveMix3, min: 0, max: 1, step: 0.05 },
-        waveSpeed1: { value: DEFAULTS.waveSpeed1, min: 0.01, max: 0.2, step: 0.005 },
-        waveSpeed2: { value: DEFAULTS.waveSpeed2, min: 0.01, max: 0.2, step: 0.005 },
-        waveSpeed3: { value: DEFAULTS.waveSpeed3, min: 0.01, max: 0.2, step: 0.005 },
-      }, { collapsed: true }),
-      Background: folder({
-        centerFadeFalloff: { value: DEFAULTS.centerFadeFalloff, min: 0.05, max: 1, step: 0.05 },
-        overlayHue: { value: DEFAULTS.overlayHue, min: 0, max: 360, step: 1 },
-        fontSizeMultiplier: { value: DEFAULTS.fontSizeMultiplier, min: 0.7, max: 1.5, step: 0.05 },
-      }, { collapsed: true }),
-      'Ambient Pulse': folder({
-        pulseFreq1: { value: DEFAULTS.pulseFreq1, min: 0.1, max: 3, step: 0.1 },
-        pulseFreq2: { value: DEFAULTS.pulseFreq2, min: 0.1, max: 3, step: 0.1 },
-        pulseFreq3: { value: DEFAULTS.pulseFreq3, min: 0.1, max: 3, step: 0.1 },
-        pulseMix1: { value: DEFAULTS.pulseMix1, min: 0, max: 1, step: 0.05 },
-        pulseMix2: { value: DEFAULTS.pulseMix2, min: 0, max: 1, step: 0.05 },
-        pulseMix3: { value: DEFAULTS.pulseMix3, min: 0, max: 1, step: 0.05 },
-      }, { collapsed: true }),
-    }));
-    // Extract palette key; all DEFAULTS keys are now registered as leva controls.
-    activePaletteKey = (values as Record<string, unknown>).palette as string;
-    config = configOverrides
-      ? { ...(values as unknown as Config), ...configOverrides }
-      : (values as unknown as Config);
-  } else {
-    config = configOverrides ? { ...DEFAULTS, ...configOverrides } as Config : DEFAULTS;
-  }
+  const config: Config = configOverrides ? { ...DEFAULTS, ...configOverrides } as Config : DEFAULTS;
+  const activePaletteKey: string = DEFAULT_PALETTE;
 
   // Sync config into a ref so the physics RAF loop reads fresh values
   // without needing config in useEffect deps (which would restart the loop)
@@ -506,6 +297,9 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
       isDriftingRef.current = true;
       isPressingRef.current = false;
     },
+    getContainer() {
+      return containerRef.current;
+    },
   }), [clientToGrid]);
 
   // Detect touch device
@@ -515,21 +309,44 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
     return () => window.removeEventListener('touchstart', onTouch);
   }, []);
 
+  // Measure actual rendered character dimensions (handles cross-browser font differences)
+  const measureCharRef = useRef<{ w: number; h: number } | null>(null);
+  const measureChar = useCallback((size: number, container: HTMLElement) => {
+    const span = document.createElement('span');
+    span.style.fontFamily = '"Courier New", Consolas, monospace';
+    span.style.fontSize = `${size}px`;
+    span.style.lineHeight = '1';
+    span.style.position = 'absolute';
+    span.style.visibility = 'hidden';
+    span.style.whiteSpace = 'pre';
+    span.textContent = 'M\nM\nM\nM\nM\nM\nM\nM\nM\nM'; // 10 lines, 1 char each
+    container.appendChild(span);
+    const r = span.getBoundingClientRect();
+    const w = r.width;       // single char width
+    const h = r.height / 10; // average line height across 10 lines
+    container.removeChild(span);
+    measureCharRef.current = { w, h };
+    return { w, h };
+  }, []);
+
   // Calculate grid size and font size to fill container exactly
   const updateSize = useCallback((rect: DOMRect) => {
     if (rect.width === 0 || rect.height === 0) return;
+    const container = containerRef.current;
+    if (!container) return;
 
     const mul = configRef.current.fontSizeMultiplier;
     const baseFontSize = Math.max(4, Math.min(14, Math.min(rect.width, rect.height) * 0.008)) * mul;
-    const charWidth = baseFontSize * 0.6;
-    const charHeight = baseFontSize * 1.0;
 
-    const cols = Math.ceil(rect.width / charWidth);
-    const rows = Math.ceil(rect.height / charHeight);
+    // Measure actual char dimensions from the browser's rendering engine
+    const { w: charWidth, h: charHeight } = measureChar(baseFontSize, container);
+
+    const cols = Math.ceil(rect.width / charWidth) + 2;
+    const rows = Math.ceil(rect.height / charHeight) + 2;
 
     setGridSize({ width: cols, height: rows });
     setFontSize(baseFontSize);
-  }, []);
+  }, [measureChar]);
 
   // Recalc grid when fontSizeMultiplier changes
   useEffect(() => {
@@ -630,15 +447,13 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
       if (sparkleAccum >= 100) {
         sparkleAccum -= 100;
         if (Math.random() < c.sparkleSpawnChance) {
-          setSparkles(prev => {
-            const newSparkle: Sparkle = {
-              x: Math.floor(Math.random() * width),
-              y: Math.floor(Math.random() * height),
-              life: 1,
-              char: paletteRef.current.sparkle[Math.floor(Math.random() * paletteRef.current.sparkle.length)]
-            };
-            return [...prev.slice(-c.sparkleMaxCount), newSparkle];
-          });
+          const newSparkle: Sparkle = {
+            x: Math.floor(Math.random() * width),
+            y: Math.floor(Math.random() * height),
+            life: 1,
+            char: paletteRef.current.sparkle[Math.floor(Math.random() * paletteRef.current.sparkle.length)]
+          };
+          sparklesRef.current = [...sparklesRef.current.slice(-c.sparkleMaxCount), newSparkle];
         }
       }
 
@@ -646,10 +461,9 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
       sparkleDecayAccum += dt;
       if (sparkleDecayAccum >= 60) {
         sparkleDecayAccum -= 60;
-        setSparkles(prev => prev
+        sparklesRef.current = sparklesRef.current
           .map(s => ({ ...s, life: s.life - c.sparkleDecayRate }))
-          .filter(s => s.life > 0)
-        );
+          .filter(s => s.life > 0);
       }
 
       // --- Pointer lerp with momentum/inertia ---
@@ -720,7 +534,8 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
           life: 1.0,
         };
 
-        // Spawn scatter particles
+        // Spawn scatter particles (cap at 80 to prevent accumulation on rapid taps)
+        if (scatterRef.current.length <= 80) {
         const sx = pointerRef.current.x;
         const sy = pointerRef.current.y;
         const vx0 = velocityRef.current.vx;
@@ -736,6 +551,7 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
             char: paletteRef.current.scatter[Math.floor(Math.random() * paletteRef.current.scatter.length)],
           });
         }
+        } // end scatter cap
 
         pointerRef.current = { x: -100, y: -100 };
         prevPointerRef.current = { x: -1, y: -1 };
@@ -841,7 +657,7 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
 
     // Create sparkle lookup
     const sparkleMap = new Map<string, string>();
-    for (const s of sparkles) {
+    for (const s of sparklesRef.current) {
       if (s.life > c.sparkleVisibilityThreshold) {
         sparkleMap.set(`${s.x},${s.y}`, s.char);
       }
@@ -987,20 +803,17 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
       blueOpacity,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [frame, gridData, sparkles, width, height, effectivePaletteKey]);
+  }, [frame, gridData, width, height, effectivePaletteKey]);
 
   return (
     <div
       ref={containerRef}
       style={{
         position: 'absolute',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
+        top: 1,
+        left: 1,
+        right: 1,
+        bottom: 1,
         userSelect: 'none',
         overflow: 'hidden',
         pointerEvents: 'none',
@@ -1032,7 +845,7 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
               fontFamily: '"Courier New", Consolas, monospace',
               fontSize: `${fontSize}px`,
               lineHeight: 1.0,
-              color: `hsl(${configRef.current.overlayHue}, 100%, 50%)`,
+              color: '#fff',
               margin: 0,
               whiteSpace: 'pre',
               textAlign: 'left',

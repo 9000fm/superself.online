@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
 import Image from 'next/image';
-import { Leva } from 'leva';
+import { toPng } from 'html-to-image';
 import LoadingDots from './LoadingDots';
 import AsciiArt, { AsciiArtRef } from './AsciiArt';
 
@@ -33,8 +33,8 @@ import {
   Shop,
 } from './components';
 
-// Lazy-load VJ Panel
-const VJPanel = React.lazy(() => import('./components/VJPanel'));
+// Lazy-load SFX Panel
+const SfxPanel = React.lazy(() => import('./components/SfxPanel'));
 
 // Isolated spinner component to prevent re-renders on main component
 function Spinner({ vjActive, onActivate }: { vjActive?: boolean; onActivate?: () => void }) {
@@ -137,9 +137,13 @@ export default function Home() {
   const [rebootCount, setRebootCount] = useState(0);
 
   // VJ Panel state
-  const [showVJPanel, setShowVJPanel] = useState(false);
+  const [showSfxPanel, setShowSfxPanel] = useState(false);
   const [vjConfigOverrides, setVjConfigOverrides] = useState<Partial<import('./AsciiArt').Config> | undefined>(undefined);
   const [vjPalette, setVjPalette] = useState<string | undefined>(undefined);
+
+  // VJ prompt character cycle
+  const VJ_SYMBOLS = ['>', '/', '-', '\\', '<', '\\', '-', '/'];
+  const [vjPromptChar, setVjPromptChar] = useState('>');
 
   // Landscape warning
   const [showLandscapeWarning, setShowLandscapeWarning] = useState(false);
@@ -353,12 +357,24 @@ export default function Home() {
         setShowWelcomePopup(false);
         setActiveSection(null);
         setShowMenuDropdown(false);
-        setShowVJPanel(false);
+        setShowSfxPanel(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // VJ prompt char cycle
+  useEffect(() => {
+    if (!showSfxPanel) { setVjPromptChar('>'); return; }
+    let i = 0;
+    const id = setInterval(() => {
+      i = (i + 1) % VJ_SYMBOLS.length;
+      setVjPromptChar(VJ_SYMBOLS[i]);
+    }, 250);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSfxPanel]);
 
   // About typing effect
   useEffect(() => {
@@ -390,14 +406,42 @@ export default function Home() {
   }, [activeSection, aboutHasTyped, t]);
 
   const handleVJToggle = useCallback(() => {
-    setShowVJPanel(prev => !prev);
+    setShowSfxPanel(prev => !prev);
   }, []);
+
+  const handleCapture = useCallback(async () => {
+    const container = asciiRef.current?.getContainer();
+    if (!container) return;
+    try {
+      const dataUrl = await toPng(container, {
+        backgroundColor: '#0000FF',
+        style: { top: '0', left: '0', right: '0', bottom: '0' },
+      });
+      const link = document.createElement('a');
+      link.download = `superself-ascii-${Date.now()}.png`;
+      link.href = dataUrl;
+      link.click();
+    } catch {
+      // capture failed — silently ignore
+    }
+  }, []);
+
+  // Triple-click detection for ">" prompt char
+  const promptClickTimes = useRef<number[]>([]);
+  const handlePromptClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    const now = Date.now();
+    promptClickTimes.current.push(now);
+    promptClickTimes.current = promptClickTimes.current.filter(t => now - t < 800);
+    if (promptClickTimes.current.length >= 3) {
+      promptClickTimes.current = [];
+      handleVJToggle();
+    }
+  }, [handleVJToggle]);
 
   const showMainContent = phase === 'main';
 
   return (
-    <>
-    {process.env.NODE_ENV === 'development' && <Leva collapsed />}
     <main
       style={{
         position: 'fixed',
@@ -410,6 +454,7 @@ export default function Home() {
         margin: 0,
         padding: 0,
         transition: shutdown.fadeFromBlack ? 'background-color 0.8s ease-out' : 'none',
+        userSelect: 'none',
       }}
     >
       {/* Frame border */}
@@ -515,7 +560,10 @@ export default function Home() {
         }}
         onClick={handleReplayEntrance}
       >
-        <span style={{ opacity: entrance.showTitlePrompt ? 1 : 0 }}>&gt; </span>
+        <span
+          onClick={handlePromptClick}
+          style={{ opacity: entrance.showTitlePrompt ? 1 : 0, cursor: 'pointer', display: 'inline-block', width: '1ch', textAlign: 'center' }}
+        >{vjPromptChar}</span>{' '}
         {entrance.typedTitle}
         <span className={entrance.showTitleCursor ? 'blink' : ''} style={{ opacity: entrance.showTitleCursor ? 1 : 0 }}>
           _
@@ -1039,7 +1087,7 @@ export default function Home() {
         }}
       >
         <span style={{ fontFamily: winFont, fontSize: 'clamp(0.6rem, 1.2vw, 0.75rem)', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>
-          {'{ superself '}<Spinner vjActive={showVJPanel} onActivate={handleVJToggle} />{` 2026 - ${scrambled.copyright || t.allRightsReserved} }`}
+          {'{ superself '}<Spinner vjActive={showSfxPanel} onActivate={handleVJToggle} />{` 2026 - ${scrambled.copyright || t.allRightsReserved} }`}
         </span>
       </div>
 
@@ -1066,13 +1114,14 @@ export default function Home() {
         </div>
       )}
 
-      {/* VJ Panel */}
-      {showVJPanel && (
+      {/* SFX Panel */}
+      {showSfxPanel && (
         <Suspense fallback={null}>
-          <VJPanel
+          <SfxPanel
             onConfigChange={setVjConfigOverrides}
             onPaletteChange={setVjPalette}
-            onClose={() => setShowVJPanel(false)}
+            onClose={() => setShowSfxPanel(false)}
+            onCapture={handleCapture}
           />
         </Suspense>
       )}
@@ -1150,6 +1199,5 @@ export default function Home() {
         </div>
       )}
     </main>
-    </>
   );
 }

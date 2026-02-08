@@ -54,6 +54,7 @@ export default function Shop({
 
   // UI state
   const [whatsAppHover, setWhatsAppHover] = useState(false);
+  const [pressedButton, setPressedButton] = useState<string | null>(null);
 
   // Touch swipe state
   const touchStartX = useRef<number | null>(null);
@@ -353,6 +354,11 @@ export default function Shop({
               onClick={goPrev}
               disabled={currentIndex === 0}
               aria-label="Previous product"
+              onMouseDown={() => currentIndex > 0 && setPressedButton('left')}
+              onMouseUp={() => setPressedButton(null)}
+              onMouseLeave={() => pressedButton === 'left' && setPressedButton(null)}
+              onTouchStart={() => currentIndex > 0 && setPressedButton('left')}
+              onTouchEnd={() => setPressedButton(null)}
               style={{
                 width: sizes.arrowSize,
                 height: sizes.arrowSize,
@@ -360,7 +366,9 @@ export default function Shop({
                 border: 'none',
                 boxShadow: currentIndex === 0
                   ? 'inset 1px 1px 0 #808080'
-                  : 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
+                  : pressedButton === 'left'
+                    ? 'inset 1px 1px 0 #0a0a0a, inset -1px -1px 0 #ffffff, inset 2px 2px 0 #808080, inset -2px -2px 0 #dfdfdf'
+                    : 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
                 cursor: currentIndex === 0 ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -506,6 +514,11 @@ export default function Shop({
               onClick={goNext}
               disabled={currentIndex === products.length - 1}
               aria-label="Next product"
+              onMouseDown={() => currentIndex < products.length - 1 && setPressedButton('right')}
+              onMouseUp={() => setPressedButton(null)}
+              onMouseLeave={() => pressedButton === 'right' && setPressedButton(null)}
+              onTouchStart={() => currentIndex < products.length - 1 && setPressedButton('right')}
+              onTouchEnd={() => setPressedButton(null)}
               style={{
                 width: sizes.arrowSize,
                 height: sizes.arrowSize,
@@ -513,7 +526,9 @@ export default function Shop({
                 border: 'none',
                 boxShadow: currentIndex === products.length - 1
                   ? 'inset 1px 1px 0 #808080'
-                  : 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
+                  : pressedButton === 'right'
+                    ? 'inset 1px 1px 0 #0a0a0a, inset -1px -1px 0 #ffffff, inset 2px 2px 0 #808080, inset -2px -2px 0 #dfdfdf'
+                    : 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
                 cursor: currentIndex === products.length - 1 ? 'not-allowed' : 'pointer',
                 display: 'flex',
                 alignItems: 'center',
@@ -546,6 +561,11 @@ export default function Shop({
               <button
                 key={size}
                 onClick={() => setSelectedSize(size)}
+                onMouseDown={() => setPressedButton(`size-${size}`)}
+                onMouseUp={() => setPressedButton(null)}
+                onMouseLeave={() => pressedButton === `size-${size}` && setPressedButton(null)}
+                onTouchStart={() => setPressedButton(`size-${size}`)}
+                onTouchEnd={() => setPressedButton(null)}
                 style={{
                   fontFamily: WIN_FONT,
                   fontSize: sizes.sizeButtonFont,
@@ -556,7 +576,9 @@ export default function Shop({
                   border: 'none',
                   boxShadow: selectedSize === size
                     ? 'inset 1px 1px 0 #000050, inset -1px -1px 0 #0000a0'
-                    : WIN95_STYLES.button.boxShadow,
+                    : pressedButton === `size-${size}`
+                      ? 'inset 1px 1px 0 #0a0a0a, inset -1px -1px 0 #ffffff, inset 2px 2px 0 #808080, inset -2px -2px 0 #dfdfdf'
+                      : WIN95_STYLES.button.boxShadow,
                 }}
               >
                 {size}
@@ -569,15 +591,20 @@ export default function Shop({
             <button
               onClick={handleWhatsAppClick}
               onMouseEnter={() => setWhatsAppHover(true)}
-              onMouseLeave={() => setWhatsAppHover(false)}
+              onMouseLeave={() => { setWhatsAppHover(false); pressedButton === 'whatsapp' && setPressedButton(null); }}
+              onMouseDown={() => setPressedButton('whatsapp')}
+              onMouseUp={() => setPressedButton(null)}
+              onTouchStart={() => setPressedButton('whatsapp')}
+              onTouchEnd={() => setPressedButton(null)}
               style={{
                 fontFamily: WIN_FONT,
                 fontSize: sizes.whatsAppFont,
                 padding: sizes.whatsAppPadding,
                 cursor: 'pointer',
-                backgroundColor: whatsAppHover ? '#1da851' : '#25D366',
+                backgroundColor: pressedButton === 'whatsapp' ? '#1a9e4c' : whatsAppHover ? '#1da851' : '#25D366',
                 color: '#fff',
                 border: '1px solid #128C7E',
+                boxShadow: pressedButton === 'whatsapp' ? 'inset 2px 2px 4px rgba(0,0,0,0.3)' : 'none',
                 display: 'inline-flex',
                 alignItems: 'center',
                 justifyContent: 'center',

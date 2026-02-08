@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useCallback } from 'react';
+import { useRef, useCallback, useState } from 'react';
 
 interface Win95TrackbarProps {
   value: number;
@@ -21,6 +21,17 @@ export default function Win95Trackbar({
 }: Win95TrackbarProps) {
   const trackRef = useRef<HTMLDivElement>(null);
   const draggingRef = useRef(false);
+  const [isDragging, setIsDragging] = useState(false);
+
+  const snapToNearest5 = useCallback((raw: number) => {
+    // Snap to nearest 5% if within 2% on release
+    const pct = ((raw - min) / (max - min)) * 100;
+    const nearest5 = Math.round(pct / 5) * 5;
+    if (Math.abs(pct - nearest5) <= 2) {
+      return min + (nearest5 / 100) * (max - min);
+    }
+    return raw;
+  }, [min, max]);
 
   const updateValue = useCallback((clientX: number) => {
     const track = trackRef.current;
@@ -36,6 +47,7 @@ export default function Win95Trackbar({
     e.preventDefault();
     e.stopPropagation();
     draggingRef.current = true;
+    setIsDragging(true);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
     updateValue(e.clientX);
   }, [updateValue]);
@@ -48,18 +60,24 @@ export default function Win95Trackbar({
 
   const handlePointerUp = useCallback((e: React.PointerEvent) => {
     draggingRef.current = false;
+    setIsDragging(false);
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
-  }, []);
+    // Snap on release
+    const snapped = snapToNearest5(value);
+    if (snapped !== value) {
+      onChange(Math.max(min, Math.min(max, snapped)));
+    }
+  }, [snapToNearest5, value, onChange, min, max]);
 
-  const pct = Math.round(((value - min) / (max - min)) * 100);
+  const intVal = Math.round(((value - min) / (max - min)) * 100);
   const thumbPos = ((value - min) / (max - min)) * 100;
 
   return (
     <div style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '6px',
-      height: '22px',
+      gap: '8px',
+      height: '34px',
       userSelect: 'none',
     }}>
       {/* Label */}
@@ -70,11 +88,12 @@ export default function Win95Trackbar({
         width: '52px',
         flexShrink: 0,
         textAlign: 'right',
+        textTransform: 'uppercase',
       }}>
         {label}
       </span>
 
-      {/* Track container — 44px tall touch target */}
+      {/* Track container */}
       <div
         ref={trackRef}
         onPointerDown={handlePointerDown}
@@ -83,20 +102,54 @@ export default function Win95Trackbar({
         style={{
           position: 'relative',
           flex: 1,
-          height: '44px',
+          height: '32px',
           display: 'flex',
           alignItems: 'center',
           cursor: 'pointer',
           touchAction: 'none',
         }}
       >
-        {/* Sunken groove */}
+        {/* Tick marks above the track */}
+        <div style={{
+          position: 'absolute',
+          top: '3px',
+          left: 0,
+          right: 0,
+          height: '4px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          pointerEvents: 'none',
+        }}>
+          {Array.from({ length: 11 }, (_, i) => (
+            <div
+              key={i}
+              style={{
+                width: '1px',
+                height: '4px',
+                backgroundColor: '#808080',
+              }}
+            />
+          ))}
+        </div>
+
+        {/* Track background (sunken) */}
         <div style={{
           width: '100%',
           height: '4px',
-          backgroundColor: '#808080',
-          boxShadow: 'inset 1px 1px 0 #404040, inset -1px -1px 0 #dfdfdf',
-        }} />
+          backgroundColor: '#fff',
+          boxShadow: 'inset 1px 1px 0 #808080, inset -1px -1px 0 #dfdfdf',
+          position: 'relative',
+        }}>
+          {/* Filled portion */}
+          <div style={{
+            position: 'absolute',
+            left: 0,
+            top: 0,
+            width: `${thumbPos}%`,
+            height: '100%',
+            backgroundColor: '#000080',
+          }} />
+        </div>
 
         {/* Thumb */}
         <div style={{
@@ -105,38 +158,53 @@ export default function Win95Trackbar({
           top: '50%',
           transform: 'translateY(-50%)',
           width: '11px',
-          height: '21px',
+          height: '18px',
           backgroundColor: '#c0c0c0',
           boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
           pointerEvents: 'none',
           display: 'flex',
+          flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
+          gap: '2px',
         }}>
-          {/* Center notch */}
-          <div style={{
-            width: '1px',
-            height: '7px',
-            backgroundColor: '#808080',
-          }} />
+          {/* Center grip lines */}
+          <div style={{ width: '5px', height: '1px', backgroundColor: '#808080' }} />
+          <div style={{ width: '5px', height: '1px', backgroundColor: '#fff' }} />
         </div>
+
+        {/* Tooltip while dragging */}
+        {isDragging && (
+          <div style={{
+            position: 'absolute',
+            left: `calc(${thumbPos}% - 14px)`,
+            top: '-20px',
+            backgroundColor: '#ffffe1',
+            border: '1px solid #000',
+            padding: '1px 4px',
+            fontFamily: '"MS Sans Serif", Arial, sans-serif',
+            fontSize: '10px',
+            color: '#000',
+            whiteSpace: 'nowrap',
+            pointerEvents: 'none',
+            zIndex: 10,
+          }}>
+            {intVal}
+          </div>
+        )}
       </div>
 
-      {/* Percentage — sunken readout */}
+      {/* Integer readout (0-100) */}
       <span style={{
         fontFamily: '"MS Sans Serif", Arial, sans-serif',
-        fontSize: '10px',
+        fontSize: '11px',
         color: '#000',
-        width: '32px',
+        width: '26px',
         flexShrink: 0,
-        textAlign: 'center',
-        backgroundColor: '#fff',
-        border: '2px solid',
-        borderColor: '#808080 #ffffff #ffffff #808080',
-        padding: '1px 2px',
-        lineHeight: '14px',
+        textAlign: 'right',
+        fontVariantNumeric: 'tabular-nums',
       }}>
-        {pct}%
+        {intVal}
       </span>
     </div>
   );

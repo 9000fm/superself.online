@@ -85,15 +85,24 @@ export function useLanguageScramble({
       let frame = 0;
       const maxFrames = 18;
 
+      // Per-character random lock frame: each char resolves independently
+      // instead of sweeping left-to-right. Creates an in-place morph effect.
+      const charLockFrames: Record<string, number[]> = {};
+      for (const key of Object.keys(newTexts) as (keyof typeof newTexts)[]) {
+        const textLen = newTexts[key].length;
+        charLockFrames[key] = Array.from({ length: textLen }, () =>
+          Math.floor(Math.random() * (maxFrames - 2)) + 2 // lock between frame 2 and maxFrames
+        );
+      }
+
       const scrambleInterval = setInterval(() => {
         frame++;
 
-        // Progressive reveal for each text (preserves spaces to prevent overflow)
-        const scrambleText = (newText: string) => {
-          const locked = Math.floor((frame / maxFrames) * newText.length);
+        // In-place morph: each character resolves at its own random frame
+        const scrambleText = (newText: string, lockFrames: number[]) => {
           let result = '';
           for (let i = 0; i < newText.length; i++) {
-            if (i < locked) {
+            if (frame >= lockFrames[i]) {
               result += newText[i];
             } else if (newText[i] === ' ' || newText[i] === '\n') {
               result += newText[i];
@@ -105,18 +114,18 @@ export function useLanguageScramble({
         };
 
         setScrambled({
-          about: scrambleText(newTexts.about),
-          shop: scrambleText(newTexts.shop),
-          message: scrambleText(newTexts.message),
-          copyright: scrambleText(newTexts.copyright),
-          welcomeMsg: scrambleText(newTexts.welcomeMsg),
-          aboutText: scrambleText(newTexts.aboutText),
-          shopMsg: scrambleText(newTexts.shopMsg),
-          close: scrambleText(newTexts.close),
-          cancel: scrambleText(newTexts.cancel),
-          ok: scrambleText(newTexts.ok),
-          confirm: scrambleText(newTexts.confirm),
-          subscribePrompt: scrambleText(newTexts.subscribePrompt),
+          about: scrambleText(newTexts.about, charLockFrames.about),
+          shop: scrambleText(newTexts.shop, charLockFrames.shop),
+          message: scrambleText(newTexts.message, charLockFrames.message),
+          copyright: scrambleText(newTexts.copyright, charLockFrames.copyright),
+          welcomeMsg: scrambleText(newTexts.welcomeMsg, charLockFrames.welcomeMsg),
+          aboutText: scrambleText(newTexts.aboutText, charLockFrames.aboutText),
+          shopMsg: scrambleText(newTexts.shopMsg, charLockFrames.shopMsg),
+          close: scrambleText(newTexts.close, charLockFrames.close),
+          cancel: scrambleText(newTexts.cancel, charLockFrames.cancel),
+          ok: scrambleText(newTexts.ok, charLockFrames.ok),
+          confirm: scrambleText(newTexts.confirm, charLockFrames.confirm),
+          subscribePrompt: scrambleText(newTexts.subscribePrompt, charLockFrames.subscribePrompt),
         });
 
         if (frame >= maxFrames) {
