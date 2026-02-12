@@ -13,7 +13,7 @@ import { Phase, Language, ActiveSection, ActiveWindow, WelcomeStep } from './typ
 import { translations, getDotChar } from './translations';
 
 // Constants
-import { CONTACT, WIN_FONT, FRAME_INSETS, WIN95_STYLES } from './constants';
+import { CONTACT, WIN_FONT, FRAME_INSETS, WIN95_STYLES, SCRAMBLE_CHARS } from './constants';
 
 // Hooks
 import {
@@ -37,14 +37,9 @@ import {
 const SfxPanel = React.lazy(() => import('./components/SfxPanel'));
 
 // Isolated spinner component to prevent re-renders on main component
-function Spinner({ vjActive, onActivate }: { vjActive?: boolean; onActivate?: () => void }) {
+function Spinner() {
   const [frame, setFrame] = useState(0);
   const chars = ['|', '/', '-', '\\'];
-
-  // Triple-click detection
-  const clickTimesRef = useRef<number[]>([]);
-  // Long-press detection
-  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -53,47 +48,7 @@ function Spinner({ vjActive, onActivate }: { vjActive?: boolean; onActivate?: ()
     return () => clearInterval(interval);
   }, []);
 
-  const handleClick = useCallback(() => {
-    if (!onActivate) return;
-    const now = Date.now();
-    clickTimesRef.current.push(now);
-    // Keep only clicks within last 1 second
-    clickTimesRef.current = clickTimesRef.current.filter(t => now - t < 1000);
-    if (clickTimesRef.current.length >= 3) {
-      clickTimesRef.current = [];
-      onActivate();
-    }
-  }, [onActivate]);
-
-  const handleTouchStart = useCallback(() => {
-    if (!onActivate) return;
-    longPressRef.current = setTimeout(() => {
-      onActivate();
-      longPressRef.current = null;
-    }, 800);
-  }, [onActivate]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (longPressRef.current) {
-      clearTimeout(longPressRef.current);
-      longPressRef.current = null;
-    }
-  }, []);
-
-  return (
-    <span
-      onClick={handleClick}
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-      onTouchCancel={handleTouchEnd}
-      style={{
-        cursor: 'pointer',
-        color: vjActive ? 'rgba(0, 0, 255, 0.6)' : undefined,
-      }}
-    >
-      {chars[frame]}
-    </span>
-  );
+  return <span>{chars[frame]}</span>;
 }
 
 export default function Home() {
@@ -122,10 +77,8 @@ export default function Home() {
   const emailInputRef = useRef<HTMLInputElement>(null);
   const lastClickPos = useRef({ x: 0, y: 0 });
 
-  // About panel typing
-  const [typedAboutText, setTypedAboutText] = useState('');
-  const [aboutTypingComplete, setAboutTypingComplete] = useState(false);
-  const [aboutHasTyped, setAboutHasTyped] = useState(false);
+  // About scramble-in state
+  const [scrambledAboutOpen, setScrambledAboutOpen] = useState('');
 
   // Menu state
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
@@ -147,6 +100,14 @@ export default function Home() {
 
   // Landscape warning
   const [showLandscapeWarning, setShowLandscapeWarning] = useState(false);
+
+  // Theme state — init from DOM (set by layout hydration script)
+  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+
+  useEffect(() => {
+    const stored = document.documentElement.dataset.theme;
+    if (stored === 'dark') setTheme('dark');
+  }, []);
 
   // Ref for ASCII art
   const asciiRef = useRef<AsciiArtRef>(null);
@@ -181,9 +142,6 @@ export default function Home() {
       setShowMenuDropdown(false);
       setShowLogo(false);
       setShowLoader(false);
-      setAboutHasTyped(false);
-      setTypedAboutText('');
-      setAboutTypingComplete(false);
       setRebootCount((c) => c + 1);
       setPhase('boot');
     },
@@ -204,6 +162,13 @@ export default function Home() {
   const { scrambled } = useLanguageScramble({ phase, language });
 
   const draggable = useDraggable();
+
+  const toggleTheme = useCallback(() => {
+    const next = theme === 'light' ? 'dark' : 'light';
+    localStorage.setItem('theme', next);
+    document.documentElement.dataset.theme = next;
+    setTheme(next);
+  }, [theme]);
 
   // Detect problematic aspect ratio (landscape on small screens)
   useEffect(() => {
@@ -263,9 +228,6 @@ export default function Home() {
     setShowNotification(false);
     setShowMenuDropdown(false);
     entrance.resetEntranceState();
-    setAboutHasTyped(false);
-    setTypedAboutText('');
-    setAboutTypingComplete(false);
 
     setTimeout(() => {
       setReplayTrigger((prev) => prev + 1);
@@ -376,34 +338,53 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [showSfxPanel]);
 
-  // About typing effect
+  // About scramble-in effect — wavefront resolve with soft flicker edge
+  const prevAboutSection = useRef<ActiveSection>(null);
   useEffect(() => {
-    if (activeSection === 'about' && !aboutHasTyped) {
+    if (activeSection === 'about' && prevAboutSection.current !== 'about') {
       const fullText = t.aboutText;
-      setTypedAboutText('');
-      setAboutTypingComplete(false);
+      const textLen = fullText.length;
+      const chars = language === 'JP' ? SCRAMBLE_CHARS.japanese : SCRAMBLE_CHARS.base;
+      const tickRate = 30;
+      const chaosHold = 20;   // ticks of pure chaos (~600ms)
+      const sweepTicks = 60;  // ticks for wavefront sweep (~1800ms)
+      const softEdge = 0.15;  // flicker zone width (fraction of text)
+      let tick = 0;
 
-      let currentIndex = 0;
-      let cancelled = false;
-      const typeNextChar = () => {
-        if (cancelled) return;
-        if (currentIndex < fullText.length) {
-          setTypedAboutText(fullText.substring(0, currentIndex + 1));
-          currentIndex++;
-          setTimeout(typeNextChar, 50);
-        } else {
-          setAboutTypingComplete(true);
-          setAboutHasTyped(true);
+      const scrambleChar = (ch: string) =>
+        (ch === ' ' || ch === '\n') ? ch : chars[Math.floor(Math.random() * chars.length)];
+
+      const buildFrame = () => {
+        const progress = Math.max(0, (tick - chaosHold) / sweepTicks);
+        const wavefront = progress * (1 + softEdge);
+        let result = '';
+        for (let i = 0; i < textLen; i++) {
+          const ch = fullText[i];
+          if (ch === ' ' || ch === '\n') { result += ch; continue; }
+          const dist = wavefront - (i / textLen);
+          if (dist > softEdge) result += ch;
+          else if (dist > 0) result += Math.random() < (dist / softEdge) ? ch : scrambleChar(ch);
+          else result += scrambleChar(ch);
         }
+        return result;
       };
 
-      const startDelay = setTimeout(typeNextChar, 300);
-      return () => {
-        cancelled = true;
-        clearTimeout(startDelay);
-      };
+      setScrambledAboutOpen(buildFrame());
+      const interval = setInterval(() => {
+        tick++;
+        if (Math.max(0, (tick - chaosHold) / sweepTicks) * (1 + softEdge) >= 1 + softEdge) {
+          clearInterval(interval);
+          setScrambledAboutOpen('');
+          return;
+        }
+        setScrambledAboutOpen(buildFrame());
+      }, tickRate);
+
+      prevAboutSection.current = activeSection;
+      return () => { clearInterval(interval); setScrambledAboutOpen(''); };
     }
-  }, [activeSection, aboutHasTyped, t]);
+    prevAboutSection.current = activeSection;
+  }, [activeSection, t.aboutText, language]);
 
   const handleVJToggle = useCallback(() => {
     setShowSfxPanel(prev => !prev);
@@ -413,16 +394,37 @@ export default function Home() {
     const container = asciiRef.current?.getContainer();
     if (!container) return;
     try {
+      const bg = getComputedStyle(document.documentElement)
+        .getPropertyValue('--background').trim() || '#0000FF';
       const dataUrl = await toPng(container, {
-        backgroundColor: '#0000FF',
+        backgroundColor: bg,
         style: { top: '0', left: '0', right: '0', bottom: '0' },
       });
+      // Convert data URL → bitmap (stays in async user-gesture chain)
+      const res = await fetch(dataUrl);
+      const blob = await res.blob();
+      const bitmap = await createImageBitmap(blob);
+      // Add 5% padding on all sides + frame border
+      const padding = Math.round(bitmap.width * 0.05);
+      const canvas = document.createElement('canvas');
+      canvas.width = bitmap.width + padding * 2;
+      canvas.height = bitmap.height + padding * 2;
+      const ctx = canvas.getContext('2d')!;
+      ctx.fillStyle = bg;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(bitmap, padding, padding);
+      // Frame border (matches on-screen frame opacity)
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(padding - 0.5, padding - 0.5, bitmap.width + 1, bitmap.height + 1);
+      // Download
+      const finalUrl = canvas.toDataURL('image/png');
       const link = document.createElement('a');
       link.download = `superself-ascii-${Date.now()}.png`;
-      link.href = dataUrl;
+      link.href = finalUrl;
       link.click();
-    } catch {
-      // capture failed — silently ignore
+    } catch (err) {
+      console.error('Screenshot capture failed:', err);
     }
   }, []);
 
@@ -443,6 +445,7 @@ export default function Home() {
 
   return (
     <main
+      id="main-content"
       style={{
         position: 'fixed',
         top: 0,
@@ -450,13 +453,14 @@ export default function Home() {
         width: '100vw',
         height: '100dvh',
         minHeight: '-webkit-fill-available',
-        backgroundColor: phase === 'off' ? '#000' : '#0000FF',
+        backgroundColor: phase === 'off' ? '#000' : 'var(--background)',
         margin: 0,
         padding: 0,
-        transition: shutdown.fadeFromBlack ? 'background-color 0.8s ease-out' : 'none',
+        transition: 'background-color 300ms ease',
         userSelect: 'none',
       }}
     >
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       {/* Frame border */}
       <div
         style={{
@@ -572,6 +576,7 @@ export default function Home() {
 
       {/* Center - ASCII Art */}
       <div
+        aria-hidden="true"
         onMouseMove={(e) => {
           asciiRef.current?.handlePointerMove(e.clientX, e.clientY);
         }}
@@ -635,21 +640,21 @@ export default function Home() {
           zIndex: 10,
         }}
       >
-        <a href={CONTACT.instagram} target="_blank" rel="noopener noreferrer" className="social-icon" title="Instagram">
+        <a href={CONTACT.instagram} target="_blank" rel="noopener noreferrer" className="social-icon" title="Instagram" aria-label="Instagram">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" />
           </svg>
         </a>
-        <a href={CONTACT.soundcloud} target="_blank" rel="noopener noreferrer" className="social-icon" title="SoundCloud">
+        <a href={CONTACT.soundcloud} target="_blank" rel="noopener noreferrer" className="social-icon" title="SoundCloud" aria-label="SoundCloud">
           <svg width="18" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M7 17.939h-1v-8.068c.308-.231.639-.429 1-.566v8.634zm3 0h1v-9.224c-.229.265-.443.548-.621.857l-.379-.184v8.551zm-2 0h1v-8.848c-.508-.079-.623-.05-1-.01v8.858zm-4 0h1v-7.02c-.312.458-.555.971-.692 1.535l-.308-.182v5.667zm-3-5.25c-.606.547-1 1.354-1 2.268 0 .914.394 1.721 1 2.268v-4.536zm18.879-.671c-.204-2.837-2.404-5.079-5.117-5.079-1.022 0-1.964.328-2.762.877v10.123h9.089c1.607 0 2.911-1.393 2.911-3.106 0-2.233-2.168-3.772-4.121-2.815zm-16.879-.027c-.302-.024-.526-.03-1 .122v5.689h1v-5.811z" />
           </svg>
         </a>
-        <span onClick={handleCopyEmail} className="social-icon" title={CONTACT.email}>
+        <button onClick={handleCopyEmail} className="social-icon" title={CONTACT.email} aria-label="Copy email address">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
             <path d="M0 3v18h24v-18h-24zm21.518 2l-9.518 7.713-9.518-7.713h19.036zm-19.518 14v-11.817l10 8.104 10-8.104v11.817h-20z" />
           </svg>
-        </span>
+        </button>
       </div>
 
       {/* Burger Menu */}
@@ -666,70 +671,77 @@ export default function Home() {
           zIndex: 10,
         }}
       >
-        <span
+        <button
           onClick={() => setShowMenuDropdown(!showMenuDropdown)}
+          aria-label="Menu"
+          aria-expanded={showMenuDropdown}
           style={{
-            backgroundColor: '#c0c0c0',
-            color: '#000080',
+            backgroundColor: 'var(--win95-bg, #c0c0c0)',
+            color: 'var(--nav-hover-fg, #000080)',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             height: 'clamp(46px, 10vw, 54px)',
             width: 'clamp(46px, 10vw, 54px)',
+            border: 'none',
             boxShadow: showMenuDropdown
-              ? 'inset 1px 1px 0 #0a0a0a, inset -1px -1px 0 #ffffff, inset 2px 2px 0 #808080, inset -2px -2px 0 #dfdfdf, inset 3px 3px 0 #404040'
-              : 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf, inset -3px -3px 0 #404040',
+              ? 'inset 1px 1px 0 var(--win95-shadow, #0a0a0a), inset -1px -1px 0 var(--win95-highlight, #dfdfdf), inset 2px 2px 0 var(--win95-dark, #808080), inset -2px -2px 0 var(--win95-highlight, #dfdfdf), inset 3px 3px 0 var(--win95-dark, #808080)'
+              : 'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf), inset -2px -2px 0 var(--win95-dark, #808080), inset 2px 2px 0 var(--win95-highlight, #dfdfdf), inset -3px -3px 0 var(--win95-dark, #808080)',
           }}
         >
           {showMenuDropdown ? (
             <svg style={{ width: '60%', height: '60%' }} viewBox="0 0 20 20" fill="none">
-              <path d="M4 4L16 16M16 4L4 16" stroke="#000080" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M4 4L16 16M16 4L4 16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
             </svg>
           ) : (
             <svg style={{ width: '60%', height: '60%' }} viewBox="0 0 20 20" fill="none">
-              <path d="M3 5H17M3 10H17M3 15H17" stroke="#000080" strokeWidth="2.5" strokeLinecap="round" />
+              <path d="M3 5H17M3 10H17M3 15H17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
             </svg>
           )}
-        </span>
+        </button>
 
         {showMenuDropdown && (
-          <div style={{ marginTop: '28px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '20px' }}>
-            <span
+          <nav aria-label="Main navigation" style={{ marginTop: '28px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '20px' }}>
+            <button
               className={activeSection === 'about' ? '' : 'nav-cli'}
               onClick={() => setActiveSection(activeSection === 'about' ? null : 'about')}
               style={{
                 fontFamily: winFont,
                 fontSize: 'clamp(1.1rem, 4vw, 1.4rem)',
-                color: activeSection === 'about' ? '#000080' : 'white',
-                backgroundColor: activeSection === 'about' ? '#c0c0c0' : undefined,
+                color: activeSection === 'about' ? 'var(--nav-hover-fg, #000080)' : 'white',
+                backgroundColor: activeSection === 'about' ? 'var(--nav-hover-bg, #c0c0c0)' : 'transparent',
                 cursor: 'pointer',
                 padding: '4px 8px',
+                border: 'none',
               }}
+              aria-label={t.about}
             >
               {scrambled.about || t.about}
-              <span className="nav-cursor" style={{ color: activeSection === 'about' ? '#000080' : undefined }}>
+              <span className="nav-cursor" style={{ color: activeSection === 'about' ? 'var(--nav-hover-fg, #000080)' : undefined }}>
                 _
               </span>
-            </span>
-            <span
+            </button>
+            <button
               className={activeSection === 'shop' ? '' : 'nav-cli'}
               onClick={() => setActiveSection(activeSection === 'shop' ? null : 'shop')}
               style={{
                 fontFamily: winFont,
                 fontSize: 'clamp(1.1rem, 4vw, 1.4rem)',
-                color: activeSection === 'shop' ? '#000080' : 'white',
-                backgroundColor: activeSection === 'shop' ? '#c0c0c0' : undefined,
+                color: activeSection === 'shop' ? 'var(--nav-hover-fg, #000080)' : 'white',
+                backgroundColor: activeSection === 'shop' ? 'var(--nav-hover-bg, #c0c0c0)' : 'transparent',
                 cursor: 'pointer',
                 padding: '4px 8px',
+                border: 'none',
               }}
+              aria-label={t.shop}
             >
               {scrambled.shop || t.shop}
-              <span className="nav-cursor" style={{ color: activeSection === 'shop' ? '#000080' : undefined }}>
+              <span className="nav-cursor" style={{ color: activeSection === 'shop' ? 'var(--nav-hover-fg, #000080)' : undefined }}>
                 _
               </span>
-            </span>
-          </div>
+            </button>
+          </nav>
         )}
       </div>
 
@@ -750,7 +762,7 @@ export default function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', minWidth: '200px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
                 <Image src="/smiley.svg" alt=":)" width={48} height={48} style={{ flexShrink: 0 }} />
-                <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', lineHeight: '1.4', minWidth: '140px' }}>
+                <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', lineHeight: '1.4', minWidth: '140px' }}>
                   {scrambled.welcomeMsg || t.welcomeMessage}
                 </span>
               </div>
@@ -761,7 +773,7 @@ export default function Home() {
                   onTouchStart={(e) => e.stopPropagation()}
                   onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleWelcomeOk(); }}
                   className="win-btn"
-                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
+                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
                 >
                   {scrambled.ok || t.ok}
                 </button>
@@ -771,7 +783,7 @@ export default function Home() {
                   onTouchStart={(e) => e.stopPropagation()}
                   onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleCloseWelcome(); }}
                   className="win-btn"
-                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
+                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
                 >
                   {scrambled.close || t.close}
                 </button>
@@ -781,11 +793,11 @@ export default function Home() {
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-                  <rect x="2" y="5" width="20" height="14" fill="#ffffcc" stroke="#808080" strokeWidth="1" />
-                  <path d="M2 5 L12 13 L22 5" stroke="#808080" strokeWidth="1" fill="none" />
+                  <rect x="2" y="5" width="20" height="14" fill="#ffffcc" stroke="var(--win95-dark, #808080)" strokeWidth="1" />
+                  <path d="M2 5 L12 13 L22 5" stroke="var(--win95-dark, #808080)" strokeWidth="1" fill="none" />
                   <rect x="3" y="6" width="18" height="12" fill="none" stroke="#fff" strokeWidth="0.5" />
                 </svg>
-                <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', textAlign: 'left', lineHeight: '1.5' }}>
+                <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', textAlign: 'left', lineHeight: '1.5' }}>
                   {scrambled.subscribePrompt || t.subscribePrompt}
                 </span>
               </div>
@@ -793,6 +805,7 @@ export default function Home() {
                 <input
                   ref={emailInputRef}
                   type="email"
+                  className="win95-input"
                   value={subscribeEmail}
                   onChange={(e) => setSubscribeEmail(e.target.value)}
                   onClick={(e) => e.stopPropagation()}
@@ -808,11 +821,11 @@ export default function Home() {
                   autoFocus
                   style={{
                     backgroundColor: '#fff',
-                    border: '2px inset #808080',
+                    border: '2px inset var(--win95-dark, #808080)',
                     color: '#000',
                     padding: '8px 12px',
                     fontFamily: '"MS Sans Serif", Arial, sans-serif',
-                    fontSize: '12px',
+                    fontSize: '16px',
                     outline: 'none',
                     width: '100%',
                     boxSizing: 'border-box',
@@ -825,7 +838,7 @@ export default function Home() {
                     onTouchStart={(e) => { e.stopPropagation(); if (e.touches[0]) lastClickPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
                     onTouchEnd={(e) => e.stopPropagation()}
                     className="win-btn"
-                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 24px', cursor: 'pointer', ...win95Button }}
+                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', padding: '8px 24px', cursor: 'pointer', ...win95Button }}
                   >
                     {isSubscribed ? t.subscribed : (scrambled.confirm || t.confirm)}
                   </button>
@@ -835,7 +848,7 @@ export default function Home() {
                     onTouchStart={(e) => e.stopPropagation()}
                     onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleCloseWelcome(); }}
                     className="win-btn"
-                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
+                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
                   >
                     {scrambled.cancel || t.cancel}
                   </button>
@@ -862,11 +875,11 @@ export default function Home() {
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
               <svg width="40" height="40" viewBox="0 0 32 32" fill="none" style={{ flexShrink: 0 }}>
-                <rect x="2" y="2" width="28" height="28" fill="#c0c0c0" stroke="#808080" strokeWidth="1" />
+                <rect x="2" y="2" width="28" height="28" fill="var(--win95-bg, #c0c0c0)" stroke="var(--win95-dark, #808080)" strokeWidth="1" />
                 <rect x="3" y="3" width="26" height="26" fill="none" stroke="#fff" strokeWidth="1" />
-                <path d="M9 16 L14 21 L23 11" stroke="#000080" strokeWidth="3" fill="none" strokeLinecap="square" />
+                <path d="M9 16 L14 21 L23 11" stroke="var(--nav-hover-fg, #000080)" strokeWidth="3" fill="none" strokeLinecap="square" />
               </svg>
-              <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', lineHeight: '1.4' }}>
+              <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', lineHeight: '1.4' }}>
                 {t.subscribedMessage}
               </span>
             </div>
@@ -876,7 +889,7 @@ export default function Home() {
               onTouchStart={(e) => e.stopPropagation()}
               onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setShowSubscribedPopup(false); setShowNotification(true); }}
               className="win-btn"
-              style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
+              style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
             >
               {t.ok}
             </button>
@@ -904,15 +917,16 @@ export default function Home() {
           <div
             className="popup-window"
             onClick={(e) => e.stopPropagation()}
-            onMouseDown={(e) => { setActiveWindow('about'); draggable.handleDragStart(e, 'about'); }}
-            onTouchStart={(e) => { setActiveWindow('about'); draggable.handleDragStart(e, 'about'); }}
+            onMouseDown={() => setActiveWindow('about')}
+            onTouchStart={() => setActiveWindow('about')}
             style={{
-              backgroundColor: '#a8a8a8',
-              border: '2px solid #000',
-              boxShadow: '4px 4px 0 rgba(0,0,0,0.5)',
+              backgroundColor: 'var(--win95-bg, #c0c0c0)',
+              border: '2px solid',
+              borderColor: 'var(--win95-highlight, #dfdfdf) var(--win95-shadow, #0a0a0a) var(--win95-shadow, #0a0a0a) var(--win95-highlight, #dfdfdf)',
+              boxShadow: '2px 2px 0 #000',
               fontFamily: winFont,
               fontSize: 'clamp(0.85rem, 2.5vw, 1rem)',
-              color: '#000',
+              color: 'var(--win95-text, #000)',
               width: '580px',
               maxWidth: '85vw',
               lineHeight: '1.8',
@@ -920,11 +934,39 @@ export default function Home() {
               position: draggable.aboutPos.x || draggable.aboutPos.y ? 'fixed' : 'relative',
               top: draggable.aboutPos.y || undefined,
               left: draggable.aboutPos.x || undefined,
-              cursor: draggable.isDragging === 'about' ? 'grabbing' : 'grab',
               pointerEvents: 'auto',
             }}
           >
-            <div style={{ display: 'flex', justifyContent: 'flex-end', padding: '6px 6px 0 6px' }}>
+            {/* Win95 Titlebar */}
+            <div
+              onMouseDown={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'about'); }}
+              onTouchStart={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'about'); }}
+              style={{
+                background: 'var(--win95-title, linear-gradient(90deg, #000080, #1084d0))',
+                padding: '4px 6px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: draggable.isDragging === 'about' ? 'grabbing' : 'grab',
+                touchAction: 'none',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', flex: 1 }}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ marginTop: '-1px', flexShrink: 0 }}>
+                  <rect x="1" y="3" width="14" height="10" fill="var(--win95-bg, #c0c0c0)" stroke="var(--win95-text, #000)" strokeWidth="1" />
+                  <rect x="3" y="5" width="10" height="6" fill="var(--nav-hover-fg, #000080)" />
+                  <rect x="0" y="12" width="16" height="3" fill="var(--win95-dark, #808080)" />
+                </svg>
+                <span style={{
+                  color: 'white',
+                  fontFamily: 'Segoe UI, Tahoma, sans-serif',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  whiteSpace: 'nowrap',
+                }}>
+                  {scrambled.about ? scrambled.about.replace('> ', '') + '.exe' : t.about.replace('> ', '') + '.exe'}
+                </span>
+              </div>
               <button
                 onClick={(e) => { e.stopPropagation(); setActiveSection(null); draggable.resetPosition('about'); }}
                 onMouseDown={(e) => e.stopPropagation()}
@@ -933,9 +975,9 @@ export default function Home() {
                 style={{
                   width: '22px',
                   height: '20px',
-                  backgroundColor: '#c0c0c0',
+                  backgroundColor: 'var(--win95-bg, #c0c0c0)',
                   border: 'none',
-                  boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
+                  boxShadow: 'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf), inset -2px -2px 0 var(--win95-dark, #808080), inset 2px 2px 0 var(--win95-highlight, #dfdfdf)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -945,14 +987,14 @@ export default function Home() {
                 }}
               >
                 <svg width="10" height="9" viewBox="0 0 8 7" fill="none">
-                  <path d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z" fill="#000" />
+                  <path d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z" fill="var(--win95-text, #000)" />
                 </svg>
               </button>
             </div>
             <div style={{ padding: '10px clamp(16px, 5vw, 28px) clamp(28px, 4vw, 36px)', overflow: 'hidden' }}>
               <p style={{ wordBreak: 'break-word' }}>
-                <span style={{ backgroundColor: '#000080', color: '#fff', padding: '2px 6px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' }}>superself</span>{' '}
-                {scrambled.aboutText || t.aboutText}
+                <span style={{ backgroundColor: 'var(--nav-hover-fg, #000080)', color: 'var(--nav-hover-fg-contrast, #fff)', padding: '2px 6px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' }}>superself</span>{' '}
+                {scrambledAboutOpen || scrambled.aboutText || t.aboutText}
               </p>
             </div>
           </div>
@@ -975,6 +1017,7 @@ export default function Home() {
       {/* Email copied toast */}
       {showEmailCopied && (
         <div
+          role="alert"
           style={{
             position: 'fixed',
             top: emailToastPos.y - 40,
@@ -982,7 +1025,7 @@ export default function Home() {
             transform: 'translateX(-50%)',
             fontFamily: winFont,
             fontSize: 'clamp(0.9rem, 2vw, 1.1rem)',
-            color: '#0000FF',
+            color: 'var(--accent, #0000FF)',
             backgroundColor: '#fff',
             padding: '6px 14px',
             zIndex: 200,
@@ -996,6 +1039,7 @@ export default function Home() {
       {/* Invalid email toast */}
       {showEmailError && (
         <div
+          role="alert"
           style={{
             position: 'fixed',
             top: emailErrorPos.y || '50%',
@@ -1003,7 +1047,7 @@ export default function Home() {
             transform: 'translate(-50%, -100%)',
             fontFamily: winFont,
             fontSize: 'clamp(0.9rem, 2vw, 1.1rem)',
-            color: '#0000FF',
+            color: 'var(--accent, #0000FF)',
             backgroundColor: '#fff',
             padding: '8px 16px',
             zIndex: 200,
@@ -1036,11 +1080,13 @@ export default function Home() {
       {/* Language switcher */}
       <div
         className="lang-container"
+        role="radiogroup"
+        aria-label="Language"
         style={{
           position: 'absolute',
           bottom: phase === 'confirm' ? 'clamp(80px, 15vh, 120px)' : 'clamp(30px, 5vw, 60px)',
-          left: phase === 'confirm' ? '50%' : 'clamp(8px, 2vw, 18px)',
-          transform: phase === 'confirm' ? 'translateX(-50%)' : 'none',
+          left: phase === 'confirm' ? '50%' : 'calc(clamp(30px, 5vw, 60px) / 2)',
+          transform: phase === 'confirm' ? 'translateX(-50%)' : 'translateX(-50%)',
           display: phase === 'confirm' || phase === 'main' ? 'flex' : 'none',
           flexDirection: phase === 'confirm' ? 'row' : 'column-reverse',
           gap: phase === 'confirm' ? '24px' : 'clamp(16px, 4vw, 24px)',
@@ -1053,9 +1099,12 @@ export default function Home() {
         }}
       >
         {(['ES', 'EN', 'JP'] as Language[]).map((lang) => (
-          <div
+          <button
             key={lang}
             onClick={() => setLanguage(lang)}
+            role="radio"
+            aria-checked={language === lang}
+            aria-label={lang}
             style={{
               cursor: 'pointer',
               display: 'flex',
@@ -1066,28 +1115,65 @@ export default function Home() {
               color: language === lang ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)',
               letterSpacing: '0.04em',
               transition: 'color 0.25s ease',
+              background: 'none',
+              border: 'none',
+              fontFamily: 'inherit',
+              fontSize: 'inherit',
+              padding: 0,
             }}
           >
             <span>{language === lang ? '■' : '□'}</span>
             <span>{lang}</span>
-          </div>
+          </button>
         ))}
+        {/* Theme toggle — above language buttons (column-reverse: last = top) */}
+        {phase === 'main' && (
+          <button
+            onClick={toggleTheme}
+            className="theme-toggle-btn"
+            aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            style={{
+              cursor: 'pointer',
+              color: 'rgba(255,255,255,0.4)',
+              background: 'none',
+              border: 'none',
+              fontFamily: 'inherit',
+              fontSize: 'clamp(1.3rem, 3.5vw, 1.6rem)',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'color 0.25s ease, background-color 0.2s ease',
+              writingMode: 'horizontal-tb',
+            }}
+          >
+            <span style={{
+              display: 'inline-block',
+              transition: 'transform 0.4s ease',
+              transform: theme === 'dark' ? 'rotateY(180deg)' : 'none',
+            }}>
+              {theme === 'light' ? '\u263D' : '\u2600'}
+            </span>
+          </button>
+        )}
       </div>
+
+      {/* Theme toggle is now inside language container below */}
 
       {/* Copyright */}
       <div
         style={{
           position: 'absolute',
-          bottom: 'max(clamp(10px, 2.5vw, 25px), env(safe-area-inset-bottom, 0px))',
+          bottom: 'calc(max(clamp(30px, 5vw, 60px), env(safe-area-inset-bottom, 0px)) / 2)',
           left: '50%',
-          transform: 'translateX(-50%)',
+          transform: 'translateX(-50%) translateY(50%)',
           display: showMainContent ? 'block' : 'none',
           opacity: entrance.showFooter ? 1 : 0,
           transition: 'opacity 0.6s ease-in-out',
         }}
       >
         <span style={{ fontFamily: winFont, fontSize: 'clamp(0.6rem, 1.2vw, 0.75rem)', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>
-          {'{ superself '}<Spinner vjActive={showSfxPanel} onActivate={handleVJToggle} />{` 2026 - ${scrambled.copyright || t.allRightsReserved} }`}
+          {'{ superself '}<Spinner />{` 2026 - ${scrambled.copyright || t.allRightsReserved} }`}
         </span>
       </div>
 
@@ -1135,7 +1221,7 @@ export default function Home() {
             left: 0,
             right: 0,
             bottom: 0,
-            backgroundColor: '#0000FF',
+            backgroundColor: 'var(--background)',
             zIndex: 9999,
             display: 'flex',
             alignItems: 'center',
@@ -1144,16 +1230,16 @@ export default function Home() {
         >
           <div
             style={{
-              backgroundColor: '#c0c0c0',
+              backgroundColor: 'var(--win95-bg, #c0c0c0)',
               border: '2px solid',
-              borderColor: '#ffffff #0a0a0a #0a0a0a #ffffff',
+              borderColor: 'var(--win95-highlight, #dfdfdf) var(--win95-shadow, #0a0a0a) var(--win95-shadow, #0a0a0a) var(--win95-highlight, #dfdfdf)',
               boxShadow: '2px 2px 0 #000',
               maxWidth: '90vw',
             }}
           >
             <div
               style={{
-                background: 'linear-gradient(90deg, #000080, #1084d0)',
+                background: 'var(--win95-title, linear-gradient(90deg, #000080, #1084d0))',
                 padding: '3px 4px 3px 8px',
                 display: 'flex',
                 justifyContent: 'space-between',
@@ -1173,25 +1259,25 @@ export default function Home() {
                   justifyContent: 'center',
                   cursor: 'not-allowed',
                   padding: 0,
-                  backgroundColor: '#c0c0c0',
+                  backgroundColor: 'var(--win95-bg, #c0c0c0)',
                   border: 'none',
-                  boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #dfdfdf',
+                  boxShadow: 'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf)',
                 }}
               >
                 <svg width="8" height="7" viewBox="0 0 8 7" fill="none">
-                  <path d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z" fill="#808080" />
+                  <path d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z" fill="var(--win95-dark, #808080)" />
                 </svg>
               </button>
             </div>
             <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
               <svg width="32" height="29" viewBox="0 0 32 29" fill="none" style={{ flexShrink: 0, marginTop: '2px' }}>
-                <path d="M18 4H20V5H21V6H22V8H23V10H24V12H25V14H26V16H27V18H28V20H29V22H30V26H29V27H6V26H7V25H27V24H26V22H25V20H24V18H23V16H22V14H21V12H20V10H19V8H18V4Z" fill="#808080" />
+                <path d="M18 4H20V5H21V6H22V8H23V10H24V12H25V14H26V16H27V18H28V20H29V22H30V26H29V27H6V26H7V25H27V24H26V22H25V20H24V18H23V16H22V14H21V12H20V10H19V8H18V4Z" fill="var(--win95-dark, #808080)" />
                 <path d="M14 2H18V4H19V6H20V8H21V10H22V12H23V14H24V16H25V18H26V20H27V24H4V20H5V18H6V16H7V14H8V12H9V10H10V8H11V6H12V4H13V2H14Z" fill="#000" />
                 <path d="M15 4H17V6H18V8H19V10H20V12H21V14H22V16H23V18H24V20H25V22H6V20H7V18H8V16H9V14H10V12H11V10H12V8H13V6H14V4H15Z" fill="#FFFF00" />
                 <rect x="15" y="8" width="2" height="8" fill="#000" />
                 <rect x="15" y="18" width="2" height="2" fill="#000" />
               </svg>
-              <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: '#000', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
+              <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', lineHeight: '1.6', whiteSpace: 'pre-line' }}>
                 {t.warningMessage}
               </span>
             </div>

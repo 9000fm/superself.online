@@ -20,13 +20,14 @@ export default function Toast({ message, position, visible, variant = 'info' }: 
   };
 
   const textColors = {
-    info: COLORS.primary,
-    error: COLORS.primary,
-    success: COLORS.primary,
+    info: 'var(--accent, #0000FF)',
+    error: 'var(--accent, #0000FF)',
+    success: 'var(--accent, #0000FF)',
   };
 
   return (
     <div
+      role="alert"
       style={{
         position: 'fixed',
         top: position.y - 40,

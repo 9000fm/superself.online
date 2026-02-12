@@ -45,9 +45,9 @@ export function Win95Popup({
     >
       <div
         style={{
-          backgroundColor: '#c0c0c0',
+          backgroundColor: 'var(--win95-bg, #c0c0c0)',
           border: '2px solid',
-          borderColor: '#ffffff #0a0a0a #0a0a0a #ffffff',
+          borderColor: 'var(--win95-highlight, #dfdfdf) var(--win95-shadow, #0a0a0a) var(--win95-shadow, #0a0a0a) var(--win95-highlight, #dfdfdf)',
           boxShadow: '1px 1px 0 #000',
           width,
           minWidth: width,
@@ -65,7 +65,7 @@ export function Win95Popup({
             onDragStart(e);
           }}
           style={{
-            background: 'linear-gradient(90deg, #000080, #1084d0)',
+            background: 'var(--win95-title, linear-gradient(90deg, #000080, #1084d0))',
             padding: '4px 6px',
             display: 'flex',
             justifyContent: 'space-between',
@@ -90,9 +90,9 @@ export function Win95Popup({
               fill="none"
               style={{ marginTop: '-1px', flexShrink: 0 }}
             >
-              <rect x="1" y="3" width="14" height="10" fill="#c0c0c0" stroke="#000" strokeWidth="1" />
-              <rect x="3" y="5" width="10" height="6" fill="#000080" />
-              <rect x="0" y="12" width="16" height="3" fill="#808080" />
+              <rect x="1" y="3" width="14" height="10" fill="var(--win95-bg, #c0c0c0)" stroke="var(--win95-text, #000)" strokeWidth="1" />
+              <rect x="3" y="5" width="10" height="6" fill="var(--nav-hover-fg, #000080)" />
+              <rect x="0" y="12" width="16" height="3" fill="var(--win95-dark, #808080)" />
             </svg>
             <span
               style={{
@@ -123,16 +123,16 @@ export function Win95Popup({
               cursor: 'pointer',
               padding: 0,
               touchAction: 'manipulation',
-              backgroundColor: '#c0c0c0',
+              backgroundColor: 'var(--win95-bg, #c0c0c0)',
               border: 'none',
               boxShadow:
-                'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
+                'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf), inset -2px -2px 0 var(--win95-dark, #808080), inset 2px 2px 0 var(--win95-highlight, #dfdfdf)',
             }}
           >
             <svg width="10" height="9" viewBox="0 0 8 7" fill="none">
               <path
                 d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z"
-                fill="#000"
+                fill="var(--win95-text, #000)"
               />
             </svg>
           </button>

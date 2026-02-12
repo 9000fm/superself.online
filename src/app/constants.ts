@@ -97,28 +97,28 @@ export const SCRAMBLE_CHARS = {
 // Windows 95 style constants
 export const WIN95_STYLES = {
   button: {
-    backgroundColor: '#c0c0c0',
+    backgroundColor: 'var(--win95-bg, #c0c0c0)',
     border: 'none',
-    boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
+    boxShadow: 'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf), inset -2px -2px 0 var(--win95-dark, #808080), inset 2px 2px 0 var(--win95-highlight, #dfdfdf)',
   },
   buttonPressed: {
-    backgroundColor: '#c0c0c0',
+    backgroundColor: 'var(--win95-bg, #c0c0c0)',
     border: 'none',
-    boxShadow: 'inset 1px 1px 0 #0a0a0a, inset -1px -1px 0 #ffffff, inset 2px 2px 0 #808080, inset -2px -2px 0 #dfdfdf, inset 3px 3px 0 #404040',
+    boxShadow: 'inset 1px 1px 0 var(--win95-shadow, #0a0a0a), inset -1px -1px 0 var(--win95-highlight, #dfdfdf), inset 2px 2px 0 var(--win95-dark, #808080), inset -2px -2px 0 var(--win95-highlight, #dfdfdf), inset 3px 3px 0 var(--win95-dark, #808080)',
   },
   windowBorder: {
     border: '2px solid',
-    borderColor: '#ffffff #0a0a0a #0a0a0a #ffffff',
+    borderColor: 'var(--win95-highlight, #dfdfdf) var(--win95-shadow, #0a0a0a) var(--win95-shadow, #0a0a0a) var(--win95-highlight, #dfdfdf)',
     boxShadow: '1px 1px 0 #000',
   },
   closeButton: {
     width: '22px',
     height: '20px',
-    backgroundColor: '#c0c0c0',
+    backgroundColor: 'var(--win95-bg, #c0c0c0)',
     border: 'none',
-    boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
+    boxShadow: 'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf), inset -2px -2px 0 var(--win95-dark, #808080), inset 2px 2px 0 var(--win95-highlight, #dfdfdf)',
   },
-  titlebarGradient: 'linear-gradient(90deg, #000080, #1084d0)',
+  titlebarGradient: 'var(--win95-title, linear-gradient(90deg, #000080, #1084d0))',
 } as const;
 
 // Font stack for terminal/DOS style

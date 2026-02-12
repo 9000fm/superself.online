@@ -76,16 +76,16 @@ export default function Win95Trackbar({
     <div style={{
       display: 'flex',
       alignItems: 'center',
-      gap: '8px',
-      height: '34px',
+      gap: '6px',
+      height: '26px',
       userSelect: 'none',
     }}>
       {/* Label */}
       <span style={{
         fontFamily: '"MS Sans Serif", Arial, sans-serif',
-        fontSize: '11px',
-        color: '#000',
-        width: '52px',
+        fontSize: '10px',
+        color: 'var(--win95-text, #000)',
+        width: '46px',
         flexShrink: 0,
         textAlign: 'right',
         textTransform: 'uppercase',
@@ -102,7 +102,7 @@ export default function Win95Trackbar({
         style={{
           position: 'relative',
           flex: 1,
-          height: '32px',
+          height: '24px',
           display: 'flex',
           alignItems: 'center',
           cursor: 'pointer',
@@ -115,7 +115,7 @@ export default function Win95Trackbar({
           top: '3px',
           left: 0,
           right: 0,
-          height: '4px',
+          height: '3px',
           display: 'flex',
           justifyContent: 'space-between',
           pointerEvents: 'none',
@@ -125,8 +125,8 @@ export default function Win95Trackbar({
               key={i}
               style={{
                 width: '1px',
-                height: '4px',
-                backgroundColor: '#808080',
+                height: '3px',
+                backgroundColor: 'var(--win95-dark, #808080)',
               }}
             />
           ))}
@@ -137,7 +137,7 @@ export default function Win95Trackbar({
           width: '100%',
           height: '4px',
           backgroundColor: '#fff',
-          boxShadow: 'inset 1px 1px 0 #808080, inset -1px -1px 0 #dfdfdf',
+          boxShadow: 'inset 1px 1px 0 var(--win95-dark, #808080), inset -1px -1px 0 var(--win95-highlight, #dfdfdf)',
           position: 'relative',
         }}>
           {/* Filled portion */}
@@ -147,7 +147,7 @@ export default function Win95Trackbar({
             top: 0,
             width: `${thumbPos}%`,
             height: '100%',
-            backgroundColor: '#000080',
+            backgroundColor: 'var(--nav-hover-fg, #000080)',
           }} />
         </div>
 
@@ -158,9 +158,9 @@ export default function Win95Trackbar({
           top: '50%',
           transform: 'translateY(-50%)',
           width: '11px',
-          height: '18px',
-          backgroundColor: '#c0c0c0',
-          boxShadow: 'inset -1px -1px 0 #0a0a0a, inset 1px 1px 0 #ffffff, inset -2px -2px 0 #808080, inset 2px 2px 0 #dfdfdf',
+          height: '14px',
+          backgroundColor: 'var(--win95-bg, #c0c0c0)',
+          boxShadow: 'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf), inset -2px -2px 0 var(--win95-dark, #808080), inset 2px 2px 0 var(--win95-highlight, #dfdfdf)',
           pointerEvents: 'none',
           display: 'flex',
           flexDirection: 'column',
@@ -169,8 +169,8 @@ export default function Win95Trackbar({
           gap: '2px',
         }}>
           {/* Center grip lines */}
-          <div style={{ width: '5px', height: '1px', backgroundColor: '#808080' }} />
-          <div style={{ width: '5px', height: '1px', backgroundColor: '#fff' }} />
+          <div style={{ width: '5px', height: '1px', backgroundColor: 'var(--win95-dark, #808080)' }} />
+          <div style={{ width: '5px', height: '1px', backgroundColor: 'var(--win95-highlight, #dfdfdf)' }} />
         </div>
 
         {/* Tooltip while dragging */}
@@ -197,9 +197,9 @@ export default function Win95Trackbar({
       {/* Integer readout (0-100) */}
       <span style={{
         fontFamily: '"MS Sans Serif", Arial, sans-serif',
-        fontSize: '11px',
-        color: '#000',
-        width: '26px',
+        fontSize: '10px',
+        color: 'var(--win95-text, #000)',
+        width: '22px',
         flexShrink: 0,
         textAlign: 'right',
         fontVariantNumeric: 'tabular-nums',

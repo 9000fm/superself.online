@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { Phase, Language } from '../types';
 import { SCRAMBLE_CHARS } from '../constants';
 
@@ -14,7 +14,7 @@ interface UseMainEntranceProps {
 interface UseMainEntranceReturn {
   showFrame: boolean;
   showTitlePrompt: boolean;
-  typedTitle: string;
+  typedTitle: React.ReactNode;
   showTitleCursor: boolean;
   showFooter: boolean;
   burgerVisible: boolean;
@@ -34,7 +34,7 @@ export function useMainEntrance({
 
   const [showFrame, setShowFrame] = useState(false);
   const [showTitlePrompt, setShowTitlePrompt] = useState(false);
-  const [typedTitle, setTypedTitle] = useState('');
+  const [typedTitle, setTypedTitle] = useState<React.ReactNode>('');
   const [showTitleCursor, setShowTitleCursor] = useState(false);
   const [showFooter, setShowFooter] = useState(false);
   const [burgerVisible, setBurgerVisible] = useState(false);
@@ -65,10 +65,10 @@ export function useMainEntrance({
       const titleText = 'superself';
 
       // Timings depend on skip mode
-      // Footer/burger appear after the scramble finishes (~5.5s after title start)
+      // Footer/burger appear while title is still scrambling
       const timings = skipMode
         ? { frame: 300, title: 800, footer: 1500, burger: 2000, popup: 12000 }
-        : { frame: 800, title: 1500, footer: 7500, burger: 8000, popup: 18000 + Math.random() * 4000 };
+        : { frame: 800, title: 1500, footer: 3500, burger: 5000, popup: 18000 + Math.random() * 4000 };
 
       // Step 1: Show frame first
       const frameTimer = setTimeout(() => {
@@ -79,44 +79,47 @@ export function useMainEntrance({
       let scrambleTimeout: ReturnType<typeof setTimeout> | null = null;
       const titleTimer = setTimeout(() => {
         setShowTitlePrompt(true);
-        setShowTitleCursor(true);
 
         // ── Per-character slot-machine resolve with dramatic variation ──
         // Each character spins like a slot machine with its own personality:
         // different chaos speeds, resolve durations, and a dramatic freeze before lock.
+        // Characters appear one-by-one from left (typing effect) before resolving.
         const len = titleText.length;
 
         // Timing parameters
-        const initialChaos = skipMode ? 250 : 1000;           // all chars scramble together before any resolves
-        const baseStagger = skipMode ? 80 : 300;              // base gap between char resolve starts
-        const baseResolveDuration = skipMode ? 500 : 1600;    // base resolve window (randomized per-char)
-        const startInterval = skipMode ? 100 : 150;           // tick speed at start of resolve (slow)
-        const peakInterval = skipMode ? 20 : 25;              // tick speed at peak (fastest)
-        const endInterval = skipMode ? 140 : 250;             // tick speed at end of resolve (slower — settling)
+        const initialChaos = skipMode ? 250 : 800;            // chaos phase before any resolves
+        const baseStagger = skipMode ? 120 : 380;             // base gap between char resolve starts
+        const baseResolveDuration = skipMode ? 600 : 2000;    // base resolve window (randomized per-char)
+        const startInterval = skipMode ? 100 : 50;            // tick speed at start of resolve (fast)
+        const peakInterval = skipMode ? 25 : 50;              // tick speed at peak
+        const endInterval = skipMode ? 160 : 350;             // tick speed at end of resolve (settling)
         const tickRate = 25;                                   // render loop interval (ms)
 
-        // Randomize resolve order: shuffle indices so chars don't resolve left-to-right
-        const resolveOrder = Array.from({ length: len }, (_, i) => i);
-        for (let i = resolveOrder.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [resolveOrder[i], resolveOrder[j]] = [resolveOrder[j], resolveOrder[i]];
+        // Per-character appearance time (near-simultaneous flash-in)
+        const appearStagger = skipMode ? 15 : 30;             // ms between each char appearing
+        const charAppearTime = new Array(len).fill(0);
+        for (let i = 0; i < len; i++) {
+          charAppearTime[i] = i * appearStagger;
         }
 
-        // Per-character resolve duration: ±40% random variation
-        // Some chars settle fast (960ms), others linger (2240ms)
+        // Sequential resolve order (left-to-right) — no shuffle
+        const resolveOrder = Array.from({ length: len }, (_, i) => i);
+
+        // Per-character resolve duration: ±50% random variation
+        // Some chars settle fast, others linger
         const charResolveDuration = new Array(len).fill(0);
         for (let i = 0; i < len; i++) {
-          charResolveDuration[i] = baseResolveDuration * (0.6 + Math.random() * 0.8);
+          charResolveDuration[i] = baseResolveDuration * (0.5 + Math.random() * 1.0);
         }
 
-        // Per-character chaos speed: some flicker fast (30ms), others rotate lazily (120ms)
+        // Per-character chaos speed: wider range — some flicker fast (20ms), others rotate lazily (140ms)
         const charChaosInterval = new Array(len).fill(0);
         for (let i = 0; i < len; i++) {
-          charChaosInterval[i] = 30 + Math.random() * 90;
+          charChaosInterval[i] = 20 + Math.random() * 120;
         }
 
-        // Stagger with jitter: accumulate with ±100ms random gaps (±30ms in skip)
-        const staggerJitter = skipMode ? 30 : 100;
+        // Stagger with jitter: accumulate with ±60ms random gaps (±15ms in skip)
+        const staggerJitter = skipMode ? 15 : 60;
         const charResolveStart = new Array(len).fill(0);
         let accum = initialChaos;
         for (let rank = 0; rank < len; rank++) {
@@ -137,6 +140,7 @@ export function useMainEntrance({
         const charLastChange = new Array(len).fill(0);        // last time this char changed its random display
         const charCurrentRandom = new Array(len).fill('');     // current displayed random char
         const charChangeCount = new Array(len).fill(0);        // how many times this char has changed during resolve
+        const charOpacity = new Array(len).fill(0);            // current opacity per char
 
         // Initialize with random chars
         for (let i = 0; i < len; i++) {
@@ -155,26 +159,49 @@ export function useMainEntrance({
 
         function tick() {
           const elapsed = performance.now() - startTime;
-          let display = '';
+          const spans: React.ReactElement[] = [];
           let allLocked = true;
 
           for (let i = 0; i < len; i++) {
             const rStart = charResolveStart[i];
             const rEnd = rStart + charResolveDuration[i];
 
+            // Character hasn't appeared yet — skip entirely so cursor tracks typing front
+            if (elapsed < charAppearTime[i]) {
+              allLocked = false;
+              charOpacity[i] = 0;
+              continue;
+            }
+
             if (elapsed >= rEnd) {
               // ── Locked — show final character ──
-              display += titleText[i];
+              charOpacity[i] = 1;
+              spans.push(
+                React.createElement('span', {
+                  key: i,
+                  style: { opacity: 1 },
+                }, titleText[i])
+              );
             } else if (elapsed >= rStart) {
               // ── Seeking phase — slot machine spin with asymmetric easing ──
               allLocked = false;
               const localElapsed = elapsed - rStart;
               const t = localElapsed / charResolveDuration[i]; // 0 → 1
 
-              // Dramatic pause: freeze on near-miss in the final 8% before snapping to lock
-              if (t > 0.92) {
-                // Frozen — hold current near-miss char, building tension before snap
-                display += charCurrentRandom[i];
+              if (t > 0.88) {
+                // Wind-down — exponential deceleration like a machine losing power
+                const windT = (t - 0.88) / 0.12;          // 0 → 1
+                const windBase = skipMode ? 60 : 120;
+                const windRange = skipMode ? 300 : 600;
+                const interval = windBase + windT * windT * windRange; // quadratic ramp
+
+                if (elapsed - charLastChange[i] >= interval) {
+                  charLastChange[i] = elapsed;
+                  charChangeCount[i]++;
+                  charCurrentRandom[i] = getNearMissChar(titleText[i]);
+                }
+                // Higher base opacity in wind-down (settling)
+                charOpacity[i] = 0.85 + Math.random() * 0.15;
               } else if (t > 0.75) {
                 // Near-miss zone — pick from nearby letters, slowing down
                 const sinVal = Math.sin(Math.PI * t);
@@ -185,7 +212,7 @@ export function useMainEntrance({
                   charChangeCount[i]++;
                   charCurrentRandom[i] = getNearMissChar(titleText[i]);
                 }
-                display += charCurrentRandom[i];
+                charOpacity[i] = 0.8 + Math.random() * 0.2;
               } else {
                 // Main spin — asymmetric sinusoidal speed curve
                 const sinVal = Math.sin(Math.PI * t);
@@ -201,8 +228,16 @@ export function useMainEntrance({
                   charChangeCount[i]++;
                   charCurrentRandom[i] = scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
                 }
-                display += charCurrentRandom[i];
+                // Flicker opacity during main spin
+                charOpacity[i] = 0.7 + Math.random() * 0.3;
               }
+
+              spans.push(
+                React.createElement('span', {
+                  key: i,
+                  style: { opacity: charOpacity[i] },
+                }, charCurrentRandom[i])
+              );
             } else {
               // ── Waiting phase — per-char chaos speed (some fast, some lazy) ──
               allLocked = false;
@@ -210,13 +245,22 @@ export function useMainEntrance({
                 charLastChange[i] = elapsed;
                 charCurrentRandom[i] = scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
               }
-              display += charCurrentRandom[i];
+              // Flicker opacity during chaos
+              charOpacity[i] = 0.7 + Math.random() * 0.3;
+
+              spans.push(
+                React.createElement('span', {
+                  key: i,
+                  style: { opacity: charOpacity[i] },
+                }, charCurrentRandom[i])
+              );
             }
           }
-          setTypedTitle(display);
+          setTypedTitle(spans);
 
           if (allLocked || elapsed >= totalDuration) {
             setTypedTitle(titleText);
+            setShowTitleCursor(true);
             if (skipMode) onSkipModeComplete();
           } else {
             scrambleTimeout = setTimeout(tick, tickRate);

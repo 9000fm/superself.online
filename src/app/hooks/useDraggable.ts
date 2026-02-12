@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { Position } from '../types';
 
 interface UseDraggableReturn {
@@ -94,6 +94,29 @@ export function useDraggable(): UseDraggableReturn {
     },
     [welcomePos, aboutPos, shopPos]
   );
+
+  // Clamp positions on viewport resize so panels stay visible
+  useEffect(() => {
+    const clamp = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const fix = (pos: Position, setter: (p: Position) => void) => {
+        if (pos.x === 0 && pos.y === 0) return; // centered, skip
+        const nx = Math.min(pos.x, vw - 100);
+        const ny = Math.min(pos.y, vh - 50);
+        if (nx !== pos.x || ny !== pos.y) setter({ x: Math.max(0, nx), y: Math.max(0, ny) });
+      };
+      fix(welcomePos, setWelcomePos);
+      fix(aboutPos, setAboutPos);
+      fix(shopPos, setShopPos);
+    };
+    window.addEventListener('resize', clamp);
+    window.addEventListener('orientationchange', clamp);
+    return () => {
+      window.removeEventListener('resize', clamp);
+      window.removeEventListener('orientationchange', clamp);
+    };
+  }, [welcomePos, aboutPos, shopPos]);
 
   return {
     welcomePos,

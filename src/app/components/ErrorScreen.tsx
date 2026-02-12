@@ -34,7 +34,7 @@ export function ErrorScreen({ language, errorCode }: ErrorScreenProps) {
       <div
         style={{
           backgroundColor: '#C0C0C0',
-          color: '#0000FF',
+          color: 'var(--accent, #0000FF)',
           padding: '0.2em 0.5em',
           marginBottom: '2.5rem',
           fontSize: 'clamp(1.3rem, 4vw, 1.8rem)',

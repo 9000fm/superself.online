@@ -56,11 +56,17 @@ export const PALETTES: Record<string, Palette> = {
     sparkle: ['*','+','░','▒','#'],
     scatter: ['█','▓','▒','#','*','+'],
   },
-  circles: {
-    blocks:  [' ','·','∘','○','◔','◑','◕','●','◉','⦿','●','◕','◑','◔','○','∘'],
-    puddle:  [' ','·','∘','○','◔','◑','◕','●','◉','⦿'],
-    sparkle: ['◉','●','○','◔','⦿'],
-    scatter: ['●','◕','◑','○','·','∘'],
+  katakana: {
+    blocks:  [' ','ｦ','ｱ','ｳ','ｴ','ｶ','ｷ','ｹ','ｺ','ﾀ','ﾁ','ﾄ','ﾅ','ﾆ','ﾇ','ﾈ'],
+    puddle:  [' ','ｦ','ｱ','ｳ','ｴ','ｶ','ｷ','ｹ','ｺ','ﾀ'],
+    sparkle: ['ﾀ','ﾁ','ﾄ','ﾅ','ﾆ'],
+    scatter: ['ﾀ','ﾁ','ﾄ','ﾅ','ﾆ','ﾇ'],
+  },
+  slash: {
+    blocks:  [' ','·','·','/','\\','|','/','\\','X','╳','X','\\','/','|','\\','/'],
+    puddle:  [' ','·','/','/','\\','|','X','╳','╳','╳'],
+    sparkle: ['╳','X','|','\\','/'],
+    scatter: ['╳','X','|','\\','/','·'],
   },
   code: {
     blocks:  [' ','.',':', ';','=','+','#','$','@','&','@','$','#','+','=',':'],
@@ -79,12 +85,6 @@ export const PALETTES: Record<string, Palette> = {
     puddle:  [' ','⠁','⠃','⠇','⠏','⠟','⠿','⡿','⣿','⣿'],
     sparkle: ['⣿','⡿','⠿','⠟','⠏'],
     scatter: ['⣿','⡿','⠿','⠟','⠏','⠇'],
-  },
-  lines: {
-    blocks:  [' ','·','─','│','┤','├','┼','╪','╬','╬','╪','┼','├','┤','│','─'],
-    puddle:  [' ','·','─','│','┤','├','┼','╪','╬','╬'],
-    sparkle: ['╬','╪','┼','├','┤'],
-    scatter: ['╬','╪','┼','├','┤','│'],
   },
   signal: {
     blocks:  [' ','.','.',':', ':','+','+','#','@','@','#','+','+',':',':','.'],
@@ -177,6 +177,23 @@ export const DEFAULTS = {
   fontSizeMultiplier: 1.15,
   // Master speed
   masterSpeed: 1.0,
+  // Warp distortion (additive wave offset)
+  warpAmp: 0,
+  warpFreq: 3,
+  warpSpeed: 0.5,
+  warpMix: 0,
+  // Universal radius scale
+  radiusScale: 1.0,
+  // SFX macros
+  zoomMultiplier: 1.0,
+  invertAmount: 0,
+  scanAmount: 0,
+  voidThreshold: 0,
+  driftSpeedX: 0,
+  driftSpeedY: 0,
+  focusAmount: 0,
+  centerFadeShape: 0,
+  depthLevels: 16,
 } as const;
 
 export type Config = typeof DEFAULTS;
@@ -229,7 +246,7 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
   const configRef = useRef<Config>(config);
   configRef.current = config;
 
-  // Active palette ref — render loop reads this without re-mounting
+  // Active palette — computed directly (instant swap, no crossfade)
   const effectivePaletteKey = paletteOverride && PALETTES[paletteOverride] ? paletteOverride : activePaletteKey;
   const activePalette = PALETTES[effectivePaletteKey] || PALETTES[DEFAULT_PALETTE];
   const paletteRef = useRef<{ key: string; blocks: string[]; puddle: string[]; sparkle: string[]; scatter: string[]; blocksLen: number; puddleLen: number }>({
@@ -311,7 +328,7 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
 
   // Measure actual rendered character dimensions (handles cross-browser font differences)
   const measureCharRef = useRef<{ w: number; h: number } | null>(null);
-  const measureChar = useCallback((size: number, container: HTMLElement) => {
+  const measureChar = useCallback((size: number, container: HTMLElement, char = 'M') => {
     const span = document.createElement('span');
     span.style.fontFamily = '"Courier New", Consolas, monospace';
     span.style.fontSize = `${size}px`;
@@ -319,10 +336,12 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
     span.style.position = 'absolute';
     span.style.visibility = 'hidden';
     span.style.whiteSpace = 'pre';
-    span.textContent = 'M\nM\nM\nM\nM\nM\nM\nM\nM\nM'; // 10 lines, 1 char each
+    const N = 40;
+    const sample = (char.repeat(N) + '\n').repeat(10).trimEnd();
+    span.textContent = sample;
     container.appendChild(span);
     const r = span.getBoundingClientRect();
-    const w = r.width;       // single char width
+    const w = r.width / N;   // avg advance width across N chars
     const h = r.height / 10; // average line height across 10 lines
     container.removeChild(span);
     measureCharRef.current = { w, h };
@@ -336,10 +355,13 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
     if (!container) return;
 
     const mul = configRef.current.fontSizeMultiplier;
-    const baseFontSize = Math.max(4, Math.min(14, Math.min(rect.width, rect.height) * 0.008)) * mul;
+    const zoom = configRef.current.zoomMultiplier;
+    const baseFontSize = Math.max(4, Math.min(14, Math.min(rect.width, rect.height) * 0.008)) * mul * zoom;
 
     // Measure actual char dimensions from the browser's rendering engine
-    const { w: charWidth, h: charHeight } = measureChar(baseFontSize, container);
+    const palBlocks = paletteRef.current.blocks;
+    const sampleChar = palBlocks[Math.min(Math.floor(palBlocks.length * 0.6), palBlocks.length - 1)] || 'M';
+    const { w: charWidth, h: charHeight } = measureChar(baseFontSize, container, sampleChar);
 
     const cols = Math.ceil(rect.width / charWidth) + 2;
     const rows = Math.ceil(rect.height / charHeight) + 2;
@@ -348,7 +370,7 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
     setFontSize(baseFontSize);
   }, [measureChar]);
 
-  // Recalc grid when fontSizeMultiplier changes
+  // Recalc grid when fontSizeMultiplier or zoomMultiplier changes
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
@@ -356,7 +378,7 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
     if (rect.width > 0 && rect.height > 0) {
       updateSize(rect);
     }
-  }, [config.fontSizeMultiplier, updateSize]);
+  }, [config.fontSizeMultiplier, config.zoomMultiplier, updateSize, effectivePaletteKey]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -383,39 +405,36 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
   // Cache grid diagonal and derived radii
   const gridMetrics = useMemo(() => {
     const c = configRef.current;
+    const s = c.radiusScale;
     const gridDiag = Math.sqrt(width * width + height * height);
     return {
       gridDiag,
-      trailRadius: Math.max(5, gridDiag * c.trailRadiusFrac),
-      agRadius: Math.max(6, gridDiag * c.afterglowRadiusFrac),
-      blobHoverR: Math.max(12, gridDiag * c.blobHoverRadiusFrac),
-      blobPressR: Math.max(3, gridDiag * c.blobPressRadiusFrac),
-      puddleStartR: gridDiag * c.puddleStartRFrac,
-      puddleMaxR: gridDiag * c.puddleMaxRFrac,
+      trailRadius: Math.max(5, gridDiag * c.trailRadiusFrac * s),
+      agRadius: Math.max(6, gridDiag * c.afterglowRadiusFrac * s),
+      blobHoverR: Math.max(12, gridDiag * c.blobHoverRadiusFrac * s),
+      blobPressR: Math.max(3, gridDiag * c.blobPressRadiusFrac * s),
+      puddleStartR: gridDiag * c.puddleStartRFrac * s,
+      puddleMaxR: gridDiag * c.puddleMaxRFrac * s,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [width, height]);
+  }, [width, height, configOverrides]);
 
   const gridMetricsRef = useRef(gridMetrics);
   gridMetricsRef.current = gridMetrics;
 
-  // Pre-calculate normalized coordinates and distances
+  // Pre-calculate normalized coordinates and deltas (centerFade computed inline for SHAPE morphing)
   const gridData = useMemo(() => {
-    const c = configRef.current;
-    const data: { nx: number; ny: number; centerFade: number }[] = [];
+    const data: { nx: number; ny: number; dx: number; dy: number }[] = [];
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
         const nx = x / width;
         const ny = y / height;
         const dx = (nx - 0.5) * 2;
         const dy = (ny - 0.5) * 2;
-        const distFromCenter = Math.sqrt(dx * dx + dy * dy);
-        const centerFade = Math.max(0, 1 - distFromCenter * c.centerFadeFalloff);
-        data.push({ nx, ny, centerFade });
+        data.push({ nx, ny, dx, dy });
       }
     }
     return data;
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [width, height]);
 
   // Animation frame ticker (character rendering at ~10fps)
@@ -708,15 +727,36 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
       let whiteLine = '';
       let blueLine = '';
       for (let x = 0; x < width; x++) {
-        const { nx, ny, centerFade } = gridData[idx++];
+        const { nx, ny, dx: gdx, dy: gdy } = gridData[idx++];
+
+        // Center fade with shape morphing (euclidean→chebyshev)
+        const euclidean = Math.sqrt(gdx * gdx + gdy * gdy);
+        const chebyshev = Math.max(Math.abs(gdx), Math.abs(gdy));
+        const dist = euclidean + (chebyshev - euclidean) * c.centerFadeShape;
+        const centerFade = Math.max(0, 1 - dist * c.centerFadeFalloff);
+
+        // Warp distortion (additive spatial offset)
+        const warpOffset = c.warpMix > 0.001
+          ? c.warpAmp * fastSin(ny * c.warpFreq + time * c.warpSpeed) * c.warpMix
+          : 0;
+        let wnx = nx + warpOffset + time * c.driftSpeedX;
+        const wny = ny + warpOffset * 0.7 + time * c.driftSpeedY;
+
+        // Focus: scale down wave frequencies for smoother patterns
+        const focusScale = 1 - c.focusAmount * 0.8;
 
         // Base wave pattern
-        const wave1 = fastSin(nx * c.waveFreq1 + frameSpeed1 + ny * c.wavePhase1ny);
-        const wave2 = fastSin(nx * c.waveFreq2 - frameSpeed2 + ny * c.wavePhase2ny);
-        const wave3 = fastSin(ny * c.waveFreq3ny + frameSpeed3 + nx * c.wavePhase3nx);
+        const wave1 = fastSin(wnx * c.waveFreq1 * focusScale + frameSpeed1 + wny * c.wavePhase1ny * focusScale);
+        const wave2 = fastSin(wnx * c.waveFreq2 * focusScale - frameSpeed2 + wny * c.wavePhase2ny * focusScale);
+        const wave3 = fastSin(wny * c.waveFreq3ny * focusScale + frameSpeed3 + wnx * c.wavePhase3nx * focusScale);
 
         const combined = wave1 * c.waveMix1 + wave2 * c.waveMix2 + wave3 * c.waveMix3;
         let value = ((combined + 1) * 0.5) * centerFade;
+
+        // Invert: flip density mapping
+        if (c.invertAmount > 0.001) {
+          value = value + (1 - 2 * value) * c.invertAmount;
+        }
 
         // Compute distance to pointer once
         let distToPointer = Infinity;
@@ -765,6 +805,18 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
           }
         }
 
+        // Scan: dim odd rows for CRT scanline effect
+        if (c.scanAmount > 0.5 && (y & 1)) value *= 0.15;
+
+        // Void: blank cells below threshold
+        if (c.voidThreshold > 0.001 && value < c.voidThreshold) value = 0;
+
+        // Depth: quantize to N levels
+        const levels = Math.round(c.depthLevels);
+        if (levels < 16) {
+          value = Math.round(value * (levels - 1)) / (levels - 1);
+        }
+
         // Determine if cell is in puddle zone
         const inPuddle = showBlue && distToPointer < puddleR;
 
@@ -808,6 +860,7 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
   return (
     <div
       ref={containerRef}
+      aria-hidden="true"
       style={{
         position: 'absolute',
         top: 1,

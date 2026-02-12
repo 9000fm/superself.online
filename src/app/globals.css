@@ -3,6 +3,40 @@
 :root {
   --background: #0000FF;
   --foreground: #ffffff;
+  --accent: #0000FF;
+  --win95-bg: #c0c0c0;
+  --win95-dark: #808080;
+  --win95-title: linear-gradient(90deg, #000080, #1084d0);
+  --win95-highlight: #dfdfdf;
+  --win95-shadow: #0a0a0a;
+  --win95-text: #000000;
+  --win95-disabled: #a0a0a0;
+  --selection-bg: #ffffff;
+  --selection-fg: #0000FF;
+  --social-hover-bg: #ffffff;
+  --social-hover-fg: #0000FF;
+  --nav-hover-bg: #c0c0c0;
+  --nav-hover-fg: #000080;
+  --nav-hover-fg-contrast: #ffffff;
+}
+
+[data-theme="dark"] {
+  --background: #000000;
+  --accent: #0000FF;
+  --win95-bg: #3a3a3a;
+  --win95-dark: #252525;
+  --win95-title: linear-gradient(90deg, #1a1a1a, #333333);
+  --win95-highlight: #555555;
+  --win95-shadow: #0a0a0a;
+  --win95-text: #e0e0e0;
+  --win95-disabled: #555555;
+  --selection-bg: #ffffff;
+  --selection-fg: #000000;
+  --social-hover-bg: #ffffff;
+  --social-hover-fg: #000000;
+  --nav-hover-bg: #3a3a3a;
+  --nav-hover-fg: #ffffff;
+  --nav-hover-fg-contrast: #000000;
 }
 
 @theme inline {
@@ -40,6 +74,7 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-terminal), monospace;
+  transition: background-color 300ms ease, color 300ms ease;
 }
 
 .font-terminal {
@@ -47,8 +82,59 @@ body {
 }
 
 ::selection {
+  background: var(--selection-bg, white);
+  color: var(--selection-fg, #0000FF);
+}
+
+/* ============================================
+   SKIP LINK (accessible, hidden until focused)
+   ============================================ */
+
+.skip-link {
+  position: fixed;
+  top: -100%;
+  left: 50%;
+  transform: translateX(-50%);
   background: white;
   color: #0000FF;
+  padding: 8px 16px;
+  z-index: 10000;
+  font-family: var(--font-terminal), monospace;
+  font-size: 1rem;
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: 8px;
+}
+
+/* ============================================
+   FOCUS STYLES
+   ============================================ */
+
+:focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+
+/* ============================================
+   REDUCED MOTION
+   ============================================ */
+
+@media (prefers-reduced-motion: reduce) {
+  .blink,
+  .blink-slow,
+  .blink-hover,
+  .nav-cli:hover .blink-hover,
+  .nav-cli:hover .nav-cursor {
+    animation: none !important;
+  }
+
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 /* ============================================
@@ -104,8 +190,8 @@ body {
 }
 
 .nav-cli:hover {
-  background-color: #c0c0c0;
-  color: #000080 !important;
+  background-color: var(--nav-hover-bg, #c0c0c0);
+  color: var(--nav-hover-fg, #000080) !important;
 }
 
 /* Cursor inherits hover color */
@@ -134,7 +220,7 @@ body {
 }
 
 .win-btn:active {
-  box-shadow: inset 1px 1px 0 #0a0a0a, inset -1px -1px 0 #ffffff, inset 2px 2px 0 #808080, inset -2px -2px 0 #dfdfdf !important;
+  box-shadow: inset 1px 1px 0 var(--win95-shadow, #0a0a0a), inset -1px -1px 0 var(--win95-highlight, #dfdfdf), inset 2px 2px 0 var(--win95-dark, #808080), inset -2px -2px 0 var(--win95-highlight, #dfdfdf) !important;
 }
 
 /* ============================================
@@ -150,6 +236,7 @@ body {
   border: 1px solid transparent;
   cursor: pointer;
   transition: all 0.15s ease;
+  perspective: 200px;
 }
 
 .social-icon svg {
@@ -158,9 +245,18 @@ body {
 }
 
 .social-icon:hover {
-  color: #0000FF;
-  background-color: #fff;
-  border-color: #fff;
+  color: var(--social-hover-fg, #0000FF);
+  background-color: var(--social-hover-bg, #fff);
+  border-color: var(--social-hover-bg, #fff);
+}
+
+@keyframes spin3d {
+  0%   { transform: rotateY(0deg); }
+  100% { transform: rotateY(360deg); }
+}
+
+.social-icon:hover svg {
+  animation: spin3d 2s ease-in-out infinite;
 }
 
 /* ============================================
@@ -174,5 +270,28 @@ body {
 .nav-cli:hover .nav-cursor {
   opacity: 1;
   animation: blink 0.5s step-end infinite;
+}
+
+/* ============================================
+   THEME TOGGLE BUTTON
+   ============================================ */
+
+.theme-toggle-btn:hover {
+  color: #fff !important;
+  background-color: transparent !important;
+  border-color: transparent !important;
+}
+
+.theme-toggle-btn:hover span {
+  animation: spin3d 2s ease-in-out infinite;
+}
+
+/* ============================================
+   WIN95 INPUT
+   ============================================ */
+
+.win95-input::placeholder {
+  color: #808080;
+  opacity: 1;
 }
 

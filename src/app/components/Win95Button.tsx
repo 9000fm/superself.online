@@ -14,6 +14,7 @@ interface Win95ButtonProps {
   style?: React.CSSProperties;
   className?: string;
   width?: string;
+  'aria-label'?: string;
 }
 
 export default function Win95Button({
@@ -27,11 +28,12 @@ export default function Win95Button({
   style = {},
   className = '',
   width,
+  'aria-label': ariaLabel,
 }: Win95ButtonProps) {
   const baseStyle: React.CSSProperties = {
     fontFamily: '"MS Sans Serif", Arial, sans-serif',
     fontSize: '11px',
-    color: disabled ? '#808080' : '#000',
+    color: disabled ? 'var(--win95-dark, #808080)' : 'var(--win95-text, #000)',
     padding: '8px 24px',
     cursor: disabled ? 'not-allowed' : 'pointer',
     touchAction: 'manipulation',
@@ -50,6 +52,7 @@ export default function Win95Button({
       disabled={disabled}
       className={`win-btn ${className}`}
       style={baseStyle}
+      aria-label={ariaLabel}
     >
       {children}
     </button>
