@@ -61,38 +61,19 @@ export function ConfirmScreen({
         </div>
       ) : (
         <>
-          {/* WELCOME line - disappears when question starts */}
-          <div
-            style={{
-              fontSize: 'clamp(1.4rem, 5vw, 2.2rem)',
-              marginBottom: '1rem',
-              letterSpacing: '0.05em',
-              display: typedConfirm ? 'none' : 'block',
-            }}
-          >
-            {typedWelcome}
-            {welcomeDots}
-            <span
-              className={showConfirmCursor && !welcomeDots ? 'blink' : ''}
-              style={{ opacity: showConfirmCursor && welcomeDots.length < 3 ? 1 : 0 }}
-            >
-              _
-            </span>
-          </div>
-
-          {/* Question line - appears after welcome disappears */}
+          {/* Single unified text line — welcome erases into confirm */}
           <div
             style={{
               fontSize: 'clamp(1.4rem, 5vw, 2.2rem)',
               marginBottom: '1.5rem',
               letterSpacing: '0.05em',
-              display: typedConfirm ? 'block' : 'none',
+              minHeight: '1.5em',
             }}
           >
-            {typedConfirm}
+            {typedWelcome}{welcomeDots}{typedConfirm}
             <span
-              className={typedConfirm && !typedYes ? 'blink' : ''}
-              style={{ opacity: typedConfirm && !typedYes ? 1 : 0 }}
+              className={showConfirmCursor && !typedYes ? 'blink' : ''}
+              style={{ opacity: showConfirmCursor && !typedYes ? 1 : 0 }}
             >
               _
             </span>

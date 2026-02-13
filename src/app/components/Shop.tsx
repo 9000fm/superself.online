@@ -216,12 +216,12 @@ export default function Shop({
 
     // Typography - increased for better desktop readability
     productNameSize: isMobile ? '1.1rem' : 'clamp(1.25rem, 1.5vw, 1.6rem)',
-    priceSize: isMobile ? '1.3rem' : 'clamp(1.5rem, 1.6vw, 1.9rem)',
+    priceSize: isMobile ? '1.5rem' : 'clamp(1.7rem, 2vw, 2.2rem)',
 
     // Size buttons
     sizeButtonFont: isMobile ? '16px' : 'clamp(17px, 1.3vw, 20px)',
     sizeButtonPadding: isMobile ? '8px 20px' : '10px 24px',
-    sizeButtonMinWidth: isMobile ? '48px' : '52px',
+    sizeButtonMinWidth: isMobile ? '52px' : '56px',
 
     // WhatsApp button
     whatsAppIconSize: isMobile ? 22 : 26,
@@ -499,7 +499,8 @@ export default function Shop({
                           fontFamily: 'system-ui, -apple-system, sans-serif',
                           fontSize: sizes.priceSize,
                           textAlign: 'center',
-                          marginTop: isMobile ? '6px' : '8px',
+                          marginTop: isMobile ? '10px' : '12px',
+                          marginBottom: isMobile ? '4px' : '6px',
                           color: 'var(--win95-text, #000)',
                           opacity: isActiveProduct ? 1 : 0,
                           height: isActiveProduct ? 'auto' : '0',
@@ -511,7 +512,7 @@ export default function Shop({
                         <span style={{ textDecoration: 'line-through', opacity: 0.45, fontSize: '0.75em', marginRight: '8px', color: 'var(--win95-dark, #808080)' }}>
                           {t.currency}{product.originalPrice}
                         </span>
-                        <span style={{ color: 'var(--nav-hover-fg, #000080)', fontWeight: '600' }}>
+                        <span style={{ color: 'var(--nav-hover-fg, #000080)', fontWeight: '700', fontSize: '1.15em' }}>
                           {t.currency}{product.price}
                         </span>
                       </div>
@@ -565,7 +566,7 @@ export default function Shop({
               alignItems: 'center',
               justifyContent: 'center',
               gap: isMobile ? '8px' : '10px',
-              marginTop: isMobile ? '6px' : '10px',
+              marginTop: isMobile ? '12px' : '16px',
               marginBottom: isMobile ? '14px' : '18px',
             }}
           >
@@ -582,7 +583,8 @@ export default function Shop({
                   fontFamily: WIN_FONT,
                   fontSize: sizes.sizeButtonFont,
                   padding: sizes.sizeButtonPadding,
-                  minWidth: sizes.sizeButtonMinWidth,
+                  width: sizes.sizeButtonMinWidth,
+                  boxSizing: 'border-box' as const,
                   textAlign: 'center',
                   cursor: 'pointer',
                   backgroundColor: 'var(--win95-bg, #c0c0c0)',
