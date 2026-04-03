@@ -6,7 +6,7 @@ export const MACRO_NAMES = [
   'BURST', 'PULSE', 'GHOST',
   'DENSITY', 'WARP', 'FADE', 'SCALE',
   'ZOOM', 'INVERT', 'SCAN', 'VOID', 'DRIFT',
-  'FOCUS', 'SHAPE',
+  'FOCUS', 'SHAPE', 'PERSP',
 ] as const;
 
 export type MacroName = (typeof MACRO_NAMES)[number];
@@ -33,6 +33,7 @@ export const MACRO_DEFAULTS: MacroState = {
   DRIFT: 0,
   FOCUS: 0,
   SHAPE: 0,
+  PERSP: 0,
 };
 
 // Each macro maps to multiple Config keys.
@@ -166,6 +167,11 @@ const ENDPOINTS: Record<MacroName, MacroEndpoints> = {
   // SHAPE — circle-to-square morphing of center fade
   SHAPE: {
     centerFadeShape: { low: 0, high: 1.0 },
+  },
+  // PERSP — vertical depth perspective gradient
+  PERSP: {
+    perspectiveAmount: { low: 0, high: 1.0 },
+    perspectiveOrigin: { low: -1, high: 1.0 },
   },
 };
 

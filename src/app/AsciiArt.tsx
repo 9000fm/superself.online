@@ -92,6 +92,60 @@ export const PALETTES: Record<string, Palette> = {
     sparkle: ['@','#','+',':','!'],
     scatter: ['@','#','+','!','?','%'],
   },
+  arrows: {
+    blocks:  [' ','·','→','↗','↑','↖','←','↙','↓','↘','→','↗','↑','↖','←','·'],
+    puddle:  [' ','·','→','↗','↑','↖','←','↙','↓','↘'],
+    sparkle: ['⬆','⬇','⬅','➡','↕'],
+    scatter: ['→','↗','↑','↖','←','↘'],
+  },
+  stars: {
+    blocks:  [' ','·','·','✦','✧','★','☆','✶','✸','✹','✶','☆','★','✧','✦','·'],
+    puddle:  [' ','·','✦','✧','★','☆','✶','✸','✹','✹'],
+    sparkle: ['✸','★','✦','✶','☆'],
+    scatter: ['✹','✸','★','✶','✦','✧'],
+  },
+  box: {
+    blocks:  [' ','·','─','│','┌','┐','└','┘','├','┤','┬','┴','┼','╬','╬','┼'],
+    puddle:  [' ','─','│','┌','┐','└','┘','├','┤','╬'],
+    sparkle: ['╬','┼','╋','╳','╂'],
+    scatter: ['╬','╋','┼','╳','╂','╪'],
+  },
+  math: {
+    blocks:  [' ','·','∞','∫','∑','∏','√','∂','∇','Ω','∂','√','∏','∑','∫','∞'],
+    puddle:  [' ','·','∞','∫','∑','∏','√','∂','∇','Ω'],
+    sparkle: ['Ω','∞','∑','∫','π'],
+    scatter: ['Ω','∇','∂','∑','∏','√'],
+  },
+  dots: {
+    blocks:  [' ','·','·','◦','◦','○','○','◉','●','●','◉','○','○','◦','◦','·'],
+    puddle:  [' ','·','◦','○','◉','●','●','◉','●','●'],
+    sparkle: ['●','◉','⊙','○','◦'],
+    scatter: ['●','◉','⊙','○','◦','·'],
+  },
+  geometric: {
+    blocks:  [' ','·','△','▽','◇','□','◇','▽','△','▲','▼','◆','■','◆','▼','▲'],
+    puddle:  [' ','·','△','◇','□','◆','■','▲','▼','◆'],
+    sparkle: ['◆','■','▲','▼','◇'],
+    scatter: ['▲','▼','◆','■','△','▽'],
+  },
+  runic: {
+    blocks:  [' ','ᚠ','ᚡ','ᚢ','ᚣ','ᚤ','ᚥ','ᚦ','ᚧ','ᚨ','ᚩ','ᚪ','ᚫ','ᚬ','ᚭ','ᚮ'],
+    puddle:  [' ','ᚠ','ᚢ','ᚤ','ᚦ','ᚨ','ᚪ','ᚫ','ᚬ','ᚭ'],
+    sparkle: ['ᚨ','ᚩ','ᚪ','ᚫ','ᚬ'],
+    scatter: ['ᚦ','ᚧ','ᚨ','ᚩ','ᚪ','ᚫ'],
+  },
+  greek: {
+    blocks:  [' ','α','β','γ','δ','ε','ζ','η','θ','λ','μ','π','σ','φ','ψ','ω'],
+    puddle:  [' ','α','β','γ','δ','ε','ζ','η','θ','λ'],
+    sparkle: ['Ω','Σ','Δ','Φ','Ψ'],
+    scatter: ['Ω','Σ','Δ','Φ','Ψ','Π'],
+  },
+  music: {
+    blocks:  [' ','·','·','♩','♩','♪','♪','♫','♬','♬','♫','♪','♪','♩','♩','·'],
+    puddle:  [' ','·','♩','♪','♫','♬','♬','♫','♬','♬'],
+    sparkle: ['♬','♫','♪','♯','♭'],
+    scatter: ['♬','♫','♪','♩','♯','♭'],
+  },
 };
 
 export const PALETTE_KEYS = Object.keys(PALETTES) as (keyof typeof PALETTES)[];
@@ -194,6 +248,9 @@ export const DEFAULTS = {
   focusAmount: 0,
   centerFadeShape: 0,
   depthLevels: 16,
+  // Perspective: vertical depth gradient
+  perspectiveAmount: 0,      // 0 = flat, 1 = strong vanishing point (top=sparse, bottom=dense)
+  perspectiveOrigin: 0,      // -1 = bottom origin, 0 = top origin, 1 = center horizon
 } as const;
 
 export type Config = typeof DEFAULTS;
@@ -803,6 +860,25 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
               }
             }
           }
+        }
+
+        // Perspective: vertical depth gradient
+        if (c.perspectiveAmount > 0.001) {
+          const yNorm = y / height; // 0=top, 1=bottom
+          let depthFactor: number;
+          if (c.perspectiveOrigin > 0.5) {
+            // Center horizon: dense at middle, sparse at edges
+            depthFactor = 1 - Math.abs(yNorm - 0.5) * 2;
+          } else if (c.perspectiveOrigin < -0.5) {
+            // Bottom origin: dense at bottom, sparse at top
+            depthFactor = yNorm;
+          } else {
+            // Top origin: dense at top, sparse at bottom
+            depthFactor = 1 - yNorm;
+          }
+          // Mix between flat (1.0) and perspective-scaled
+          const perspScale = 1 - c.perspectiveAmount * (1 - depthFactor);
+          value *= perspScale;
         }
 
         // Scan: dim odd rows for CRT scanline effect
