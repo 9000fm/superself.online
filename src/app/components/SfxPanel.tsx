@@ -180,7 +180,7 @@ export default function SfxPanel({ onConfigChange, onPaletteChange, onClose, onC
         ...(pos.y === null ? { bottom: 20 } : { top: pos.y }),
         width: '350px',
         maxWidth: 'calc(100vw - 20px)',
-        zIndex: 170,
+        zIndex: 155,
         backgroundColor: 'var(--win95-bg, #c0c0c0)',
         fontFamily: '"MS Sans Serif", Arial, sans-serif',
         fontSize: '11px',

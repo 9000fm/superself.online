@@ -28,6 +28,7 @@ export type TranslationKeys = {
   subscribedMessage: string;
   confirm: string;
   cancel: string;
+  sfx: string;
   skip: string;
   warningTitle: string;
   warningMessage: string;
@@ -66,6 +67,7 @@ export const translations: Record<Language, TranslationKeys> = {
     subscribedMessage: 'Gracias por suscribirte',
     confirm: 'Enviar',
     cancel: 'Cancelar',
+    sfx: '> sfx',
     skip: 'saltar',
     warningTitle: 'Mensaje del sistema',
     warningMessage: 'El tamano de pantalla puede afectar la experiencia.\nGira el dispositivo o redimensiona la ventana.',
@@ -102,6 +104,7 @@ export const translations: Record<Language, TranslationKeys> = {
     subscribedMessage: 'Thanks for subscribing',
     confirm: 'Send',
     cancel: 'Cancel',
+    sfx: '> sfx',
     skip: 'skip',
     warningTitle: 'System message',
     warningMessage: 'Screen size may affect the experience.\nRotate device or resize window.',
@@ -138,6 +141,7 @@ export const translations: Record<Language, TranslationKeys> = {
     subscribedMessage: '登録ありがとう',
     confirm: '送信',
     cancel: 'キャンセル',
+    sfx: '> sfx',
     skip: 'スキップ',
     warningTitle: 'システムメッセージ',
     warningMessage: '画面サイズが体験に影響する可能性があります。\nデバイスを回転またはリサイズ。',

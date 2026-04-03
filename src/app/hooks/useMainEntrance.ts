@@ -68,7 +68,7 @@ export function useMainEntrance({
       // Footer/burger appear while title is still scrambling
       const timings = skipMode
         ? { frame: 300, title: 800, footer: 1500, burger: 2000, popup: 12000 }
-        : { frame: 800, title: 1500, footer: 3500, burger: 5000, popup: 18000 + Math.random() * 4000 };
+        : { frame: 500, title: 900, footer: 2200, burger: 3200, popup: 18000 + Math.random() * 4000 };
 
       // Step 1: Show frame first
       const frameTimer = setTimeout(() => {
@@ -87,9 +87,9 @@ export function useMainEntrance({
         const len = titleText.length;
 
         // Timing parameters
-        const initialChaos = skipMode ? 250 : 800;            // chaos phase before any resolves
-        const baseStagger = skipMode ? 120 : 380;             // base gap between char resolve starts
-        const baseResolveDuration = skipMode ? 600 : 2000;    // base resolve window (randomized per-char)
+        const initialChaos = skipMode ? 250 : 350;            // chaos phase before any resolves
+        const baseStagger = skipMode ? 120 : 170;             // base gap between char resolve starts
+        const baseResolveDuration = skipMode ? 600 : 1000;    // base resolve window (randomized per-char)
         const startInterval = skipMode ? 100 : 50;            // tick speed at start of resolve (fast)
         const peakInterval = skipMode ? 25 : 50;              // tick speed at peak
         const endInterval = skipMode ? 160 : 350;             // tick speed at end of resolve (settling)

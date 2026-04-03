@@ -13,7 +13,7 @@ import { Phase, Language, ActiveSection, ActiveWindow, WelcomeStep } from './typ
 import { translations, getDotChar } from './translations';
 
 // Constants
-import { CONTACT, WIN_FONT, FRAME_INSETS, WIN95_STYLES, SCRAMBLE_CHARS } from './constants';
+import { CONTACT, WIN_FONT, FRAME_INSETS, WIN95_STYLES } from './constants';
 
 // Hooks
 import {
@@ -77,8 +77,6 @@ export default function Home() {
   const emailInputRef = useRef<HTMLInputElement>(null);
   const lastClickPos = useRef({ x: 0, y: 0 });
 
-  // About scramble-in state
-  const [scrambledAboutOpen, setScrambledAboutOpen] = useState('');
 
   // Menu state
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
@@ -94,19 +92,16 @@ export default function Home() {
   const [vjConfigOverrides, setVjConfigOverrides] = useState<Partial<import('./AsciiArt').Config> | undefined>(undefined);
   const [vjPalette, setVjPalette] = useState<string | undefined>(undefined);
 
-  // VJ prompt character cycle
-  const VJ_SYMBOLS = ['>', '/', '-', '\\', '<', '\\', '-', '/'];
-  const [vjPromptChar, setVjPromptChar] = useState('>');
 
   // Landscape warning
   const [showLandscapeWarning, setShowLandscapeWarning] = useState(false);
 
   // Theme state — init from DOM (set by layout hydration script)
-  const [theme, setTheme] = useState<'light' | 'dark'>('light');
+  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
 
   useEffect(() => {
     const stored = document.documentElement.dataset.theme;
-    if (stored === 'dark') setTheme('dark');
+    if (stored === 'light') setTheme('light');
   }, []);
 
   // Ref for ASCII art
@@ -326,66 +321,6 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  // VJ prompt char cycle
-  useEffect(() => {
-    if (!showSfxPanel) { setVjPromptChar('>'); return; }
-    let i = 0;
-    const id = setInterval(() => {
-      i = (i + 1) % VJ_SYMBOLS.length;
-      setVjPromptChar(VJ_SYMBOLS[i]);
-    }, 250);
-    return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [showSfxPanel]);
-
-  // About scramble-in effect — wavefront resolve with soft flicker edge
-  const prevAboutSection = useRef<ActiveSection>(null);
-  useEffect(() => {
-    if (activeSection === 'about' && prevAboutSection.current !== 'about') {
-      const fullText = t.aboutText;
-      const textLen = fullText.length;
-      const chars = language === 'JP' ? SCRAMBLE_CHARS.japanese : SCRAMBLE_CHARS.base;
-      const tickRate = 30;
-      const chaosHold = 20;   // ticks of pure chaos (~600ms)
-      const sweepTicks = 60;  // ticks for wavefront sweep (~1800ms)
-      const softEdge = 0.15;  // flicker zone width (fraction of text)
-      let tick = 0;
-
-      const scrambleChar = (ch: string) =>
-        (ch === ' ' || ch === '\n') ? ch : chars[Math.floor(Math.random() * chars.length)];
-
-      const buildFrame = () => {
-        const progress = Math.max(0, (tick - chaosHold) / sweepTicks);
-        const wavefront = progress * (1 + softEdge);
-        let result = '';
-        for (let i = 0; i < textLen; i++) {
-          const ch = fullText[i];
-          if (ch === ' ' || ch === '\n') { result += ch; continue; }
-          const dist = wavefront - (i / textLen);
-          if (dist > softEdge) result += ch;
-          else if (dist > 0) result += Math.random() < (dist / softEdge) ? ch : scrambleChar(ch);
-          else result += scrambleChar(ch);
-        }
-        return result;
-      };
-
-      setScrambledAboutOpen(buildFrame());
-      const interval = setInterval(() => {
-        tick++;
-        if (Math.max(0, (tick - chaosHold) / sweepTicks) * (1 + softEdge) >= 1 + softEdge) {
-          clearInterval(interval);
-          setScrambledAboutOpen('');
-          return;
-        }
-        setScrambledAboutOpen(buildFrame());
-      }, tickRate);
-
-      prevAboutSection.current = activeSection;
-      return () => { clearInterval(interval); setScrambledAboutOpen(''); };
-    }
-    prevAboutSection.current = activeSection;
-  }, [activeSection, t.aboutText, language]);
-
   const handleVJToggle = useCallback(() => {
     setShowSfxPanel(prev => !prev);
   }, []);
@@ -428,18 +363,6 @@ export default function Home() {
     }
   }, []);
 
-  // Triple-click detection for ">" prompt char
-  const promptClickTimes = useRef<number[]>([]);
-  const handlePromptClick = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    const now = Date.now();
-    promptClickTimes.current.push(now);
-    promptClickTimes.current = promptClickTimes.current.filter(t => now - t < 800);
-    if (promptClickTimes.current.length >= 3) {
-      promptClickTimes.current = [];
-      handleVJToggle();
-    }
-  }, [handleVJToggle]);
 
   const showMainContent = phase === 'main';
 
@@ -500,7 +423,7 @@ export default function Home() {
             opacity: showLogo ? 1 : 0,
           }}
         >
-          <Image src="/superself-logo-wh.png" alt="superself" fill style={{ objectFit: 'contain' }} priority />
+          <Image src="/superself-logo-wh.webp" alt="superself" fill style={{ objectFit: 'contain' }} priority />
         </div>
         <div
           style={{
@@ -565,9 +488,8 @@ export default function Home() {
         onClick={handleReplayEntrance}
       >
         <span
-          onClick={handlePromptClick}
-          style={{ opacity: entrance.showTitlePrompt ? 1 : 0, cursor: 'pointer', display: 'inline-block', width: '1ch', textAlign: 'center' }}
-        >{vjPromptChar}</span>{' '}
+          style={{ opacity: entrance.showTitlePrompt ? 1 : 0, display: 'inline-block', width: '1ch', textAlign: 'center' }}
+        >&gt;</span>{' '}
         {entrance.typedTitle}
         <span className={entrance.showTitleCursor ? 'blink' : ''} style={{ opacity: entrance.showTitleCursor ? 1 : 0 }}>
           _
@@ -738,6 +660,25 @@ export default function Home() {
             >
               {scrambled.shop || t.shop}
               <span className="nav-cursor" style={{ color: activeSection === 'shop' ? 'var(--nav-hover-fg, #000080)' : undefined }}>
+                _
+              </span>
+            </button>
+            <button
+              className={showSfxPanel ? '' : 'nav-cli'}
+              onClick={() => { handleVJToggle(); }}
+              style={{
+                fontFamily: winFont,
+                fontSize: 'clamp(1.1rem, 4vw, 1.4rem)',
+                color: showSfxPanel ? 'var(--nav-hover-fg, #000080)' : 'white',
+                backgroundColor: showSfxPanel ? 'var(--nav-hover-bg, #c0c0c0)' : 'transparent',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                border: 'none',
+              }}
+              aria-label={t.sfx}
+            >
+              {scrambled.sfx || t.sfx}
+              <span className="nav-cursor" style={{ color: showSfxPanel ? 'var(--nav-hover-fg, #000080)' : undefined }}>
                 _
               </span>
             </button>
@@ -991,10 +932,10 @@ export default function Home() {
                 </svg>
               </button>
             </div>
-            <div style={{ padding: '10px clamp(16px, 5vw, 28px) clamp(28px, 4vw, 36px)', overflow: 'hidden' }}>
+            <div style={{ padding: '10px clamp(16px, 5vw, 28px) clamp(28px, 4vw, 36px)', overflow: 'hidden', animation: 'fadeIn 0.4s ease-out' }}>
               <p style={{ wordBreak: 'break-word' }}>
                 <span style={{ backgroundColor: 'var(--nav-hover-fg, #000080)', color: 'var(--nav-hover-fg-contrast, #fff)', padding: '2px 6px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' }}>superself</span>{' '}
-                {scrambledAboutOpen || scrambled.aboutText || t.aboutText}
+                {scrambled.aboutText || t.aboutText}
               </p>
             </div>
           </div>

@@ -1,27 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0000FF;
-  --foreground: #ffffff;
-  --accent: #0000FF;
-  --win95-bg: #c0c0c0;
-  --win95-dark: #808080;
-  --win95-title: linear-gradient(90deg, #000080, #1084d0);
-  --win95-highlight: #dfdfdf;
-  --win95-shadow: #0a0a0a;
-  --win95-text: #000000;
-  --win95-disabled: #a0a0a0;
-  --selection-bg: #ffffff;
-  --selection-fg: #0000FF;
-  --social-hover-bg: #ffffff;
-  --social-hover-fg: #0000FF;
-  --nav-hover-bg: #c0c0c0;
-  --nav-hover-fg: #000080;
-  --nav-hover-fg-contrast: #ffffff;
-}
-
-[data-theme="dark"] {
   --background: #000000;
+  --foreground: #ffffff;
   --accent: #0000FF;
   --win95-bg: #3a3a3a;
   --win95-dark: #252525;
@@ -37,6 +18,25 @@
   --nav-hover-bg: #3a3a3a;
   --nav-hover-fg: #ffffff;
   --nav-hover-fg-contrast: #000000;
+}
+
+[data-theme="light"] {
+  --background: #0000FF;
+  --accent: #0000FF;
+  --win95-bg: #c0c0c0;
+  --win95-dark: #808080;
+  --win95-title: linear-gradient(90deg, #000080, #1084d0);
+  --win95-highlight: #dfdfdf;
+  --win95-shadow: #0a0a0a;
+  --win95-text: #000000;
+  --win95-disabled: #a0a0a0;
+  --selection-bg: #ffffff;
+  --selection-fg: #0000FF;
+  --social-hover-bg: #ffffff;
+  --social-hover-fg: #0000FF;
+  --nav-hover-bg: #c0c0c0;
+  --nav-hover-fg: #000080;
+  --nav-hover-fg-contrast: #ffffff;
 }
 
 @theme inline {
@@ -256,7 +256,7 @@ body {
 }
 
 .social-icon:hover svg {
-  animation: spin3d 2s ease-in-out infinite;
+  animation: spin3d 0.6s ease-in-out 1;
 }
 
 /* ============================================
