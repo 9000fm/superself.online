@@ -59,11 +59,10 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
       const oW = oR - oL;
       const oH = oB - oT;
 
-      // ─── Step 2: Inner rectangle (same aspect ratio as outer, centered) ───
-      // Matching aspect ratio creates a true tunnel perspective effect
+      // ─── Step 2: Inner rect (same aspect ratio as frame) ───
       const cx = (oL + oR) / 2;
       const cy = (oT + oB) / 2;
-      const scale = 0.06; // inner rect = 6% of outer
+      const scale = 0.06;
       const iW = oW * scale;
       const iH = oH * scale;
       const iL = cx - iW / 2;
@@ -174,7 +173,7 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
         ctx.stroke();
       }
 
-      // ─── Step 6: Inner rectangle outline ───
+      // ─── Step 6: Inner square outline ───
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
       ctx.beginPath();
       ctx.rect(iL, iT, iW, iH);
