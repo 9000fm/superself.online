@@ -59,14 +59,17 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
       const oW = oR - oL;
       const oH = oB - oT;
 
-      // ─── Step 2: Inner square (centered, perfect square) ───
+      // ─── Step 2: Inner rectangle (same aspect ratio as outer, centered) ───
+      // Matching aspect ratio creates a true tunnel perspective effect
       const cx = (oL + oR) / 2;
       const cy = (oT + oB) / 2;
-      const squareSize = Math.min(oW, oH) * 0.10;
-      const iL = cx - squareSize / 2;
-      const iT = cy - squareSize / 2;
-      const iR = cx + squareSize / 2;
-      const iB = cy + squareSize / 2;
+      const scale = 0.06; // inner rect = 6% of outer
+      const iW = oW * scale;
+      const iH = oH * scale;
+      const iL = cx - iW / 2;
+      const iT = cy - iH / 2;
+      const iR = cx + iW / 2;
+      const iB = cy + iH / 2;
 
       const divisions = 6; // lines per wall edge (fewer = cleaner)
       const depthSteps = 8; // cross lines per wall
@@ -171,10 +174,10 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
         ctx.stroke();
       }
 
-      // ─── Step 6: Inner square outline ───
+      // ─── Step 6: Inner rectangle outline ───
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
       ctx.beginPath();
-      ctx.rect(iL, iT, squareSize, squareSize);
+      ctx.rect(iL, iT, iW, iH);
       ctx.stroke();
     };
 
