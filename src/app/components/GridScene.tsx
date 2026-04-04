@@ -96,8 +96,10 @@ function GridTunnel({ halfW, halfH, depth = 50, gridSpacing = 1.0 }: GridTunnelP
   );
 }
 
-// ─── Camera controller: very subtle mouse parallax ───
-function CameraController() {
+// ─── Camera controller: subtle position offset (no rotation) ───
+// Moves camera position slightly with mouse for parallax depth feel
+// without rotating, so the tunnel frame alignment stays perfect.
+function CameraController({ cameraZ }: { cameraZ: number }) {
   const { camera } = useThree();
   const mouseRef = useRef(new THREE.Vector2(0, 0));
   const targetRef = useRef(new THREE.Vector2(0, 0));
@@ -116,9 +118,12 @@ function CameraController() {
   useFrame(() => {
     mouseRef.current.x += (targetRef.current.x - mouseRef.current.x) * 0.02;
     mouseRef.current.y += (targetRef.current.y - mouseRef.current.y) * 0.02;
-    // Very gentle tilt — just enough to feel alive
-    camera.rotation.y = mouseRef.current.x * 0.03;
-    camera.rotation.x = mouseRef.current.y * 0.02;
+    // Subtle position offset — no rotation, alignment stays intact
+    camera.position.x = mouseRef.current.x * 0.15;
+    camera.position.y = mouseRef.current.y * 0.1;
+    camera.position.z = cameraZ;
+    // Always look straight ahead
+    camera.lookAt(camera.position.x * 0.5, camera.position.y * 0.5, -50);
   });
 
   return null;
@@ -174,7 +179,7 @@ function Scene({ fov, cameraZ }: { fov: number; cameraZ: number }) {
   return (
     <>
       <GridTunnel halfW={halfW} halfH={halfH} />
-      <CameraController />
+      <CameraController cameraZ={cameraZ} />
       <EffectComposer>
         <Bloom
           intensity={0.3}
