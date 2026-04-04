@@ -1,207 +1,192 @@
 'use client';
 
-import { useRef, useMemo, useEffect, useState } from 'react';
-import { Canvas, useFrame } from '@react-three/fiber';
-import * as THREE from 'three';
+import { useRef, useEffect, useCallback } from 'react';
 
-// ─── Perspective Grid Tunnel ───
-// Rectangular opening (matching frame) tapers to a perfect SQUARE at center.
-// Two layers: static converging lines + animated cross rings.
+// ─── 2D Perspective Grid ───
+// Nested rectangles from outer frame to a perfect center square.
+// Evenly spaced in screen space (like the logo). No 3D — pure 2D illusion.
+// Lines connect corresponding corners/edges between layers.
 
-interface GridTunnelProps {
-  halfW: number;
-  halfH: number;
-  divisions?: number;
-}
-
-// Shared constants
-const DEPTH = 12;
-const SQUARE_FRAC = 0.15; // inner square = 15% of min(halfW, halfH)
-
-// Interpolate between outer rect and inner square
-function lerpRect(halfW: number, halfH: number, squareHalf: number, t: number) {
-  return {
-    w: halfW + (squareHalf - halfW) * t,
-    h: halfH + (squareHalf - halfH) * t,
-    z: -DEPTH * t,
-  };
-}
-
-function brightness(t: number) {
-  return Math.max(0.04, 0.35 * Math.pow(1 - t, 1.2));
-}
-
-// ─── Static converging lines (don't animate) ───
-function ConvergingLines({ halfW, halfH, divisions = 8 }: GridTunnelProps) {
-  const squareHalf = Math.min(halfW, halfH) * SQUARE_FRAC;
-
-  const geometry = useMemo(() => {
-    const positions: number[] = [];
-    const colors: number[] = [];
-
-    const addLine = (x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, b1: number, b2: number) => {
-      positions.push(x1, y1, z1, x2, y2, z2);
-      colors.push(b1, b1, b1, b2, b2, b2);
-    };
-
-    const b0 = brightness(0);
-    const b1 = brightness(1);
-
-    // Top & bottom edges
-    for (let i = 0; i <= divisions; i++) {
-      const frac = i / divisions;
-      const outerX = -halfW + frac * halfW * 2;
-      const innerX = -squareHalf + frac * squareHalf * 2;
-      addLine(outerX, -halfH, 0, innerX, -squareHalf, -DEPTH, b0, b1);
-      addLine(outerX, halfH, 0, innerX, squareHalf, -DEPTH, b0, b1);
-    }
-
-    // Left & right edges
-    for (let i = 0; i <= divisions; i++) {
-      const frac = i / divisions;
-      const outerY = -halfH + frac * halfH * 2;
-      const innerY = -squareHalf + frac * squareHalf * 2;
-      addLine(-halfW, outerY, 0, -squareHalf, innerY, -DEPTH, b0, b1);
-      addLine(halfW, outerY, 0, squareHalf, innerY, -DEPTH, b0, b1);
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    return geo;
-  }, [halfW, halfH, divisions, squareHalf]);
-
-  return (
-    <lineSegments geometry={geometry}>
-      <lineBasicMaterial vertexColors transparent opacity={0.6} />
-    </lineSegments>
-  );
-}
-
-// ─── Animated cross rings (scroll toward viewer, seamless loop) ───
-function CrossRings({ halfW, halfH, divisions = 8 }: GridTunnelProps) {
-  const meshRef = useRef<THREE.LineSegments>(null);
-  const squareHalf = Math.min(halfW, halfH) * SQUARE_FRAC;
-  const ringCount = divisions * 3;
-  const ringStep = 1 / ringCount; // normalized step between rings
-
-  // Build ring geometry with 2 extra rings (one beyond each end) for seamless wrap
-  const geometry = useMemo(() => {
-    const positions: number[] = [];
-    const colors: number[] = [];
-
-    const addLine = (x1: number, y1: number, z1: number, x2: number, y2: number, z2: number, b1: number, b2: number) => {
-      positions.push(x1, y1, z1, x2, y2, z2);
-      colors.push(b1, b1, b1, b2, b2, b2);
-    };
-
-    // Generate rings from t=-ringStep to t=1+ringStep (extra on each end)
-    const totalRings = ringCount + 2;
-    for (let i = -1; i <= ringCount; i++) {
-      const t = i / ringCount; // can be slightly negative or >1
-      const tClamped = Math.max(0, Math.min(1, t));
-      const { w, h, z } = lerpRect(halfW, halfH, squareHalf, tClamped);
-      // Use unclamped t for z position so extra rings are at correct depth
-      const actualZ = -DEPTH * t;
-      const b = brightness(tClamped);
-
-      addLine(-w, -h, actualZ, w, -h, actualZ, b, b);
-      addLine(-w, h, actualZ, w, h, actualZ, b, b);
-      addLine(-w, -h, actualZ, -w, h, actualZ, b, b);
-      addLine(w, -h, actualZ, w, h, actualZ, b, b);
-    }
-
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-    return geo;
-  }, [halfW, halfH, squareHalf, ringCount]);
-
-  // Animate: scroll z position, loop seamlessly every ringStep in world units
-  const scrollRef = useRef(0);
-  const worldStep = DEPTH / ringCount;
-
-  useFrame((_, delta) => {
-    if (!meshRef.current) return;
-    scrollRef.current += delta * 0.15;
-    // Modulo by one ring spacing in world units — seamless loop
-    meshRef.current.position.z = scrollRef.current % worldStep;
-  });
-
-  return (
-    <lineSegments ref={meshRef} geometry={geometry}>
-      <lineBasicMaterial vertexColors transparent opacity={0.6} />
-    </lineSegments>
-  );
-}
-
-// ─── Compute tunnel dimensions to match the frame ───
-function useTunnelDimensions(fov: number, cameraZ: number) {
-  const [dims, setDims] = useState({ halfW: 4, halfH: 3 });
-
-  useEffect(() => {
-    const compute = () => {
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-      const insetPx = Math.max(30, Math.min(vw * 0.05, 60));
-      const fracW = (vw - insetPx * 2) / vw;
-      const fracH = (vh - insetPx * 2) / vh;
-      const fovRad = (fov * Math.PI) / 180;
-      const totalH = 2 * cameraZ * Math.tan(fovRad / 2);
-      const totalW = totalH * (vw / vh);
-
-      setDims({
-        halfW: (totalW * fracW) / 2,
-        halfH: (totalH * fracH) / 2,
-      });
-    };
-
-    compute();
-    window.addEventListener('resize', compute);
-    return () => window.removeEventListener('resize', compute);
-  }, [fov, cameraZ]);
-
-  return dims;
-}
-
-// ─── Scene ───
-function Scene({ fov, cameraZ }: { fov: number; cameraZ: number }) {
-  const { halfW, halfH } = useTunnelDimensions(fov, cameraZ);
-
-  return (
-    <>
-      <ConvergingLines halfW={halfW} halfH={halfH} />
-      <CrossRings halfW={halfW} halfH={halfH} />
-    </>
-  );
-}
-
-// ─── Main component ───
 interface GridSceneProps {
   isVisible?: boolean;
 }
 
-const CAM_FOV = 65;
-const CAM_Z = 2;
-
 export default function GridScene({ isVisible = true }: GridSceneProps) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const rafRef = useRef<number>(0);
+  const scrollRef = useRef(0);
+
+  const draw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    // Size canvas to viewport
+    canvas.width = vw * dpr;
+    canvas.height = vh * dpr;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    // Frame inset (matches CSS: clamp(30px, 5vw, 60px))
+    const inset = Math.max(30, Math.min(vw * 0.05, 60));
+
+    // Outer rectangle (matches the marquee frame)
+    const outerL = inset;
+    const outerT = inset;
+    const outerR = vw - inset;
+    const outerB = vh - inset;
+    const outerW = outerR - outerL;
+    const outerH = outerB - outerT;
+
+    // Inner square: perfect square at center
+    const centerX = vw / 2;
+    const centerY = vh / 2;
+    const squareSize = Math.min(outerW, outerH) * 0.06; // small square
+    const innerL = centerX - squareSize / 2;
+    const innerT = centerY - squareSize / 2;
+    const innerR = centerX + squareSize / 2;
+    const innerB = centerY + squareSize / 2;
+
+    // Clear
+    ctx.clearRect(0, 0, vw, vh);
+
+    // Number of grid divisions per edge
+    const divisions = 8;
+    // Number of depth layers (nested rectangles)
+    const layers = 12;
+
+    // Scroll offset for animation (0 to 1, loops every layer step)
+    const layerStep = 1 / layers;
+    const scroll = scrollRef.current % layerStep;
+    const scrollNorm = scroll / layerStep; // 0 to 1 within one step
+
+    // Helper: interpolate between outer and inner rect at t (0=outer, 1=inner)
+    const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
+
+    const rectAt = (t: number) => ({
+      l: lerp(outerL, innerL, t),
+      t: lerp(outerT, innerT, t),
+      r: lerp(outerR, innerR, t),
+      b: lerp(outerB, innerB, t),
+    });
+
+    // ─── Draw cross rings (nested rectangles) ───
+    // Draw layers+2 rings, shifted by scroll offset, for seamless loop
+    for (let i = -1; i <= layers + 1; i++) {
+      const t = (i + scrollNorm) / layers;
+      if (t < -0.05 || t > 1.05) continue; // skip far out-of-range
+
+      const tClamped = Math.max(0, Math.min(1, t));
+      const r = rectAt(tClamped);
+
+      // Brightness: fade toward center
+      const alpha = Math.max(0.03, 0.3 * Math.pow(1 - tClamped, 0.8));
+
+      ctx.strokeStyle = `rgba(255, 255, 255, ${alpha})`;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.rect(r.l, r.t, r.r - r.l, r.b - r.t);
+      ctx.stroke();
+    }
+
+    // ─── Draw converging lines (connect outer edge points to inner edge points) ───
+    for (let i = 0; i <= divisions; i++) {
+      const frac = i / divisions;
+
+      // Outer edge points
+      const oxTop = lerp(outerL, outerR, frac);
+      const oyLeft = lerp(outerT, outerB, frac);
+
+      // Inner edge points (same fraction on the square)
+      const ixTop = lerp(innerL, innerR, frac);
+      const iyLeft = lerp(innerT, innerB, frac);
+
+      // Gradient from bright (outer) to dim (inner)
+      const grad1 = ctx.createLinearGradient(oxTop, outerT, ixTop, innerT);
+      grad1.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+      grad1.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+
+      ctx.strokeStyle = grad1;
+      ctx.lineWidth = 1;
+
+      // Top edge → inner top
+      ctx.beginPath();
+      ctx.moveTo(oxTop, outerT);
+      ctx.lineTo(ixTop, innerT);
+      ctx.stroke();
+
+      // Bottom edge → inner bottom
+      const grad2 = ctx.createLinearGradient(oxTop, outerB, ixTop, innerB);
+      grad2.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+      grad2.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+      ctx.strokeStyle = grad2;
+      ctx.beginPath();
+      ctx.moveTo(oxTop, outerB);
+      ctx.lineTo(ixTop, innerB);
+      ctx.stroke();
+
+      // Left edge → inner left
+      const grad3 = ctx.createLinearGradient(outerL, oyLeft, innerL, iyLeft);
+      grad3.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+      grad3.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+      ctx.strokeStyle = grad3;
+      ctx.beginPath();
+      ctx.moveTo(outerL, oyLeft);
+      ctx.lineTo(innerL, iyLeft);
+      ctx.stroke();
+
+      // Right edge → inner right
+      const grad4 = ctx.createLinearGradient(outerR, oyLeft, innerR, iyLeft);
+      grad4.addColorStop(0, 'rgba(255, 255, 255, 0.25)');
+      grad4.addColorStop(1, 'rgba(255, 255, 255, 0.03)');
+      ctx.strokeStyle = grad4;
+      ctx.beginPath();
+      ctx.moveTo(outerR, oyLeft);
+      ctx.lineTo(innerR, iyLeft);
+      ctx.stroke();
+    }
+  }, []);
+
+  // Animation loop
+  useEffect(() => {
+    let running = true;
+
+    const animate = () => {
+      if (!running) return;
+      scrollRef.current += 0.0008;
+      draw();
+      rafRef.current = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    const handleResize = () => draw();
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      running = false;
+      cancelAnimationFrame(rafRef.current);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [draw]);
+
   return (
-    <div style={{
-      position: 'absolute',
-      inset: 0,
-      zIndex: 1,
-      opacity: isVisible ? 1 : 0,
-      transition: 'opacity 1.5s ease',
-      pointerEvents: 'none',
-    }}>
-      <Canvas
-        camera={{ position: [0, 0, CAM_Z], fov: CAM_FOV, near: 0.1, far: 100 }}
-        dpr={[1, 1.5]}
-        gl={{ antialias: true, alpha: true }}
-        style={{ background: 'transparent' }}
-      >
-        <Scene fov={CAM_FOV} cameraZ={CAM_Z} />
-      </Canvas>
-    </div>
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+        zIndex: 1,
+        opacity: isVisible ? 1 : 0,
+        transition: 'opacity 1.5s ease',
+        pointerEvents: 'none',
+      }}
+    />
   );
 }
