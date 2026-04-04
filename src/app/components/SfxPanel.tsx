@@ -18,6 +18,9 @@ import { PALETTE_KEYS, DEFAULT_PALETTE } from '../AsciiArt';
 import type { Config } from '../AsciiArt';
 
 interface SfxPanelProps {
+  initialMacros?: MacroState;
+  initialPalette?: string;
+  initialAlgorithm?: string;
   onConfigChange: (overrides: Partial<Config>) => void;
   onPaletteChange: (palette: string) => void;
   onAlgorithmChange: (algorithm: string) => void;
@@ -50,11 +53,11 @@ const PRESET_KEYS = Object.keys(PRESETS);
 
 /* ── Component ───────────────────────────────────────────── */
 
-export default function SfxPanel({ onConfigChange, onPaletteChange, onAlgorithmChange, onClose, onCapture }: SfxPanelProps) {
-  const [macros, setMacros] = useState<MacroState>({ ...MACRO_DEFAULTS });
-  const [palette, setPalette] = useState<string>(DEFAULT_PALETTE);
-  const [algorithm, setAlgorithm] = useState<string>('waves');
-  const [preset, setPreset] = useState<string>('INIT');
+export default function SfxPanel({ initialMacros, initialPalette, initialAlgorithm, onConfigChange, onPaletteChange, onAlgorithmChange, onClose, onCapture }: SfxPanelProps) {
+  const [macros, setMacros] = useState<MacroState>(() => initialMacros || { ...MACRO_DEFAULTS });
+  const [palette, setPalette] = useState<string>(() => initialPalette || DEFAULT_PALETTE);
+  const [algorithm, setAlgorithm] = useState<string>(() => initialAlgorithm || 'waves');
+  const [preset, setPreset] = useState<string>(() => initialMacros ? '' : 'INIT');
 
   // Internal drag state — start centered horizontally, bottom-anchored
   const [pos, setPos] = useState<{ x: number; y: number | null }>({

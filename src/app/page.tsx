@@ -33,6 +33,19 @@ import {
   Shop,
 } from './components';
 
+// VJ imports
+import { randomizeMacros, computeConfigFromMacros, ALGORITHM_NAMES } from './vj';
+import { PALETTE_KEYS } from './AsciiArt';
+
+// Generate random initial visual state
+function randomVisualState() {
+  const macros = randomizeMacros();
+  const config = computeConfigFromMacros(macros);
+  const palette = PALETTE_KEYS[Math.floor(Math.random() * PALETTE_KEYS.length)];
+  const algorithm = ALGORITHM_NAMES[Math.floor(Math.random() * ALGORITHM_NAMES.length)];
+  return { macros, config, palette, algorithm };
+}
+
 // Lazy-load SFX Panel
 const SfxPanel = React.lazy(() => import('./components/SfxPanel'));
 
@@ -86,11 +99,12 @@ export default function Home() {
   const [replayTrigger, setReplayTrigger] = useState(0);
   const [rebootCount, setRebootCount] = useState(0);
 
-  // VJ Panel state
+  // VJ Panel state — start with random visuals
+  const [initialVisuals] = useState(randomVisualState);
   const [showSfxPanel, setShowSfxPanel] = useState(false);
-  const [vjConfigOverrides, setVjConfigOverrides] = useState<Partial<import('./AsciiArt').Config> | undefined>(undefined);
-  const [vjPalette, setVjPalette] = useState<string | undefined>(undefined);
-  const [vjAlgorithm, setVjAlgorithm] = useState<string | undefined>(undefined);
+  const [vjConfigOverrides, setVjConfigOverrides] = useState<Partial<import('./AsciiArt').Config> | undefined>(() => initialVisuals.config);
+  const [vjPalette, setVjPalette] = useState<string | undefined>(() => initialVisuals.palette);
+  const [vjAlgorithm, setVjAlgorithm] = useState<string | undefined>(() => initialVisuals.algorithm);
 
 
   // Landscape warning
@@ -1135,6 +1149,9 @@ export default function Home() {
       {showSfxPanel && (
         <Suspense fallback={null}>
           <SfxPanel
+            initialMacros={initialVisuals.macros}
+            initialPalette={initialVisuals.palette}
+            initialAlgorithm={initialVisuals.algorithm}
             onConfigChange={setVjConfigOverrides}
             onPaletteChange={setVjPalette}
             onAlgorithmChange={setVjAlgorithm}
