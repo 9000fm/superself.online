@@ -4,9 +4,9 @@ import { useRef, useEffect } from 'react';
 
 // ─── 2D Perspective Grid ───
 //
-// Draws EVERYTHING in one canvas: frame border + grid.
-// No CSS frame div needed — eliminates alignment issues.
-// Calculates frame inset using the same formula as the CSS.
+// Draws the INNER grid only (diagonals, depth lines, cross lines, inner rect).
+// The OUTER frame border is handled by the CSS frame div — never touched here.
+// Reads frame position from DOM via [data-frame] getBoundingClientRect().
 
 interface GridSceneProps {
   isVisible?: boolean;
@@ -26,6 +26,12 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
+      // Read actual frame position from DOM
+      const frameEl = document.querySelector('[data-frame]');
+      if (!frameEl) return;
+      const rect = frameEl.getBoundingClientRect();
+      if (rect.width < 10 || rect.height < 10) return; // frame not visible yet
+
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const vw = window.innerWidth;
       const vh = window.innerHeight;
@@ -35,20 +41,17 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       ctx.clearRect(0, 0, vw, vh);
 
-      // Frame inset: same as CSS clamp(30px, 5vw, 60px)
-      const inset = Math.max(30, Math.min(vw * 0.05, 60));
-
-      // Outer rectangle = the frame
-      const oL = inset;
-      const oT = inset;
-      const oR = vw - inset;
-      const oB = vh - inset;
+      // Outer rect = frame border position (exact from CSS)
+      const oL = rect.left;
+      const oT = rect.top;
+      const oR = rect.right;
+      const oB = rect.bottom;
       const oW = oR - oL;
       const oH = oB - oT;
 
-      // Inner rectangle (same aspect ratio, 6% scale)
-      const cx = vw / 2;
-      const cy = vh / 2;
+      // Inner rect: same aspect ratio as frame, 6% scale
+      const cx = (oL + oR) / 2;
+      const cy = (oT + oB) / 2;
       const scale = 0.06;
       const iW = oW * scale;
       const iH = oH * scale;
@@ -66,14 +69,6 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
       ctx.lineWidth = 1;
 
-      // ─── Frame border (replaces the CSS frame div) ───
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.beginPath();
-      ctx.rect(oL, oT, oW, oH);
-      ctx.stroke();
-
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-
       // ─── Corner diagonals ───
       ctx.beginPath();
       ctx.moveTo(oL, oT); ctx.lineTo(iL, iT);
@@ -85,25 +80,11 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
       // ─── Depth lines per wall ───
       for (let i = 1; i < divisions; i++) {
         const f = i / divisions;
-        // Top wall
         ctx.beginPath();
-        ctx.moveTo(lerp(oL, oR, f), oT);
-        ctx.lineTo(lerp(iL, iR, f), iT);
-        ctx.stroke();
-        // Bottom wall
-        ctx.beginPath();
-        ctx.moveTo(lerp(oL, oR, f), oB);
-        ctx.lineTo(lerp(iL, iR, f), iB);
-        ctx.stroke();
-        // Left wall
-        ctx.beginPath();
-        ctx.moveTo(oL, lerp(oT, oB, f));
-        ctx.lineTo(iL, lerp(iT, iB, f));
-        ctx.stroke();
-        // Right wall
-        ctx.beginPath();
-        ctx.moveTo(oR, lerp(oT, oB, f));
-        ctx.lineTo(iR, lerp(iT, iB, f));
+        ctx.moveTo(lerp(oL, oR, f), oT); ctx.lineTo(lerp(iL, iR, f), iT);
+        ctx.moveTo(lerp(oL, oR, f), oB); ctx.lineTo(lerp(iL, iR, f), iB);
+        ctx.moveTo(oL, lerp(oT, oB, f)); ctx.lineTo(iL, lerp(iT, iB, f));
+        ctx.moveTo(oR, lerp(oT, oB, f)); ctx.lineTo(iR, lerp(iT, iB, f));
         ctx.stroke();
       }
 
@@ -112,25 +93,20 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
         const t = (i + scrollNorm) / depthSteps;
         if (t <= 0 || t >= 1) continue;
 
-        // Top wall
+        const topY = lerp(oT, iT, t);
+        const botY = lerp(oB, iB, t);
+        const leftX = lerp(oL, iL, t);
+        const rightX = lerp(oR, iR, t);
+
         ctx.beginPath();
-        ctx.moveTo(lerp(oL, iL, t), lerp(oT, iT, t));
-        ctx.lineTo(lerp(oR, iR, t), lerp(oT, iT, t));
-        ctx.stroke();
-        // Bottom wall
-        ctx.beginPath();
-        ctx.moveTo(lerp(oL, iL, t), lerp(oB, iB, t));
-        ctx.lineTo(lerp(oR, iR, t), lerp(oB, iB, t));
-        ctx.stroke();
-        // Left wall
-        ctx.beginPath();
-        ctx.moveTo(lerp(oL, iL, t), lerp(oT, iT, t));
-        ctx.lineTo(lerp(oL, iL, t), lerp(oB, iB, t));
-        ctx.stroke();
-        // Right wall
-        ctx.beginPath();
-        ctx.moveTo(lerp(oR, iR, t), lerp(oT, iT, t));
-        ctx.lineTo(lerp(oR, iR, t), lerp(oB, iB, t));
+        // Top wall cross line
+        ctx.moveTo(leftX, topY); ctx.lineTo(rightX, topY);
+        // Bottom wall cross line
+        ctx.moveTo(leftX, botY); ctx.lineTo(rightX, botY);
+        // Left wall cross line
+        ctx.moveTo(leftX, topY); ctx.lineTo(leftX, botY);
+        // Right wall cross line
+        ctx.moveTo(rightX, topY); ctx.lineTo(rightX, botY);
         ctx.stroke();
       }
 
