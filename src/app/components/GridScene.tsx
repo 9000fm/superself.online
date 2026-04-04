@@ -3,9 +3,9 @@
 import { useRef, useEffect, useCallback } from 'react';
 
 // ─── 2D Perspective Grid ───
-// Outer rectangle (=marquee frame) → inner square (blank center).
-// Each wall connects its edge points to the corresponding inner square edge.
-// No lines inside the square — it stays empty.
+// Reads the frame border element's actual position from the DOM.
+// Converging lines point to center, clipped at inner square.
+// Cross rings interpolate from outer frame to inner square.
 
 interface GridSceneProps {
   isVisible?: boolean;
@@ -30,22 +30,30 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
     canvas.height = vh * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Frame inset — match the marquee exactly
-    // CSS uses: max(clamp(30px, 5vw, 60px), env(safe-area-inset-*, 0px))
-    // Subtract 0.5 so grid lines sit ON the frame border
-    const inset = Math.max(30, Math.min(vw * 0.05, 60)) - 0.5;
+    // Read the actual frame border position from DOM
+    const frameEl = document.querySelector('[data-frame]');
+    let oL: number, oT: number, oR: number, oB: number;
 
-    // Outer rectangle (marquee frame edges)
-    const oL = inset;
-    const oT = inset;
-    const oR = vw - inset;
-    const oB = vh - inset;
+    if (frameEl) {
+      const rect = frameEl.getBoundingClientRect();
+      oL = rect.left;
+      oT = rect.top;
+      oR = rect.right;
+      oB = rect.bottom;
+    } else {
+      // Fallback
+      const inset = Math.max(30, Math.min(vw * 0.05, 60));
+      oL = inset; oT = inset; oR = vw - inset; oB = vh - inset;
+    }
+
     const oW = oR - oL;
     const oH = oB - oT;
 
-    // Inner square — perfect square, centered, visible size
-    const cx = vw / 2;
-    const cy = vh / 2;
+    // Center point
+    const cx = (oL + oR) / 2;
+    const cy = (oT + oB) / 2;
+
+    // Inner square: perfect square, centered, ~12% of smallest dimension
     const squareSize = Math.min(oW, oH) * 0.12;
     const iL = cx - squareSize / 2;
     const iT = cy - squareSize / 2;
@@ -53,58 +61,75 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
     const iB = cy + squareSize / 2;
 
     const divisions = 8;
-    const layers = 12;
+    const layers = 10;
     const layerStep = 1 / layers;
     const scrollNorm = (scrollRef.current % layerStep) / layerStep;
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
     ctx.clearRect(0, 0, vw, vh);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+
+    const lineColor = 'rgba(255, 255, 255, 0.3)';
     ctx.lineWidth = 1;
 
-    // ─── Converging lines: each wall connects to its own inner square edge ───
+    // ─── Converging lines: point to center, clipped at inner square ───
+    // Use canvas clipping to cut lines at the inner square boundary
 
-    // Top wall: top outer edge → top inner edge
+    ctx.save();
+
+    // Clip region = everything OUTSIDE the inner square
+    // Draw a huge rect, then cut out the inner square (even-odd rule)
+    ctx.beginPath();
+    ctx.rect(0, 0, vw, vh);            // outer (full canvas)
+    ctx.rect(iL, iT, squareSize, squareSize); // inner (cut out)
+    ctx.clip('evenodd');
+
+    ctx.strokeStyle = lineColor;
+
+    // Top edge → center
     for (let i = 0; i <= divisions; i++) {
-      const f = i / divisions;
+      const x = lerp(oL, oR, i / divisions);
       ctx.beginPath();
-      ctx.moveTo(lerp(oL, oR, f), oT);
-      ctx.lineTo(lerp(iL, iR, f), iT);
+      ctx.moveTo(x, oT);
+      ctx.lineTo(cx, cy);
+      ctx.stroke();
+    }
+    // Bottom edge → center
+    for (let i = 0; i <= divisions; i++) {
+      const x = lerp(oL, oR, i / divisions);
+      ctx.beginPath();
+      ctx.moveTo(x, oB);
+      ctx.lineTo(cx, cy);
+      ctx.stroke();
+    }
+    // Left edge → center
+    for (let i = 0; i <= divisions; i++) {
+      const y = lerp(oT, oB, i / divisions);
+      ctx.beginPath();
+      ctx.moveTo(oL, y);
+      ctx.lineTo(cx, cy);
+      ctx.stroke();
+    }
+    // Right edge → center
+    for (let i = 0; i <= divisions; i++) {
+      const y = lerp(oT, oB, i / divisions);
+      ctx.beginPath();
+      ctx.moveTo(oR, y);
+      ctx.lineTo(cx, cy);
       ctx.stroke();
     }
 
-    // Bottom wall: bottom outer edge → bottom inner edge
-    for (let i = 0; i <= divisions; i++) {
-      const f = i / divisions;
-      ctx.beginPath();
-      ctx.moveTo(lerp(oL, oR, f), oB);
-      ctx.lineTo(lerp(iL, iR, f), iB);
-      ctx.stroke();
-    }
+    ctx.restore(); // remove clipping
 
-    // Left wall: left outer edge → left inner edge
-    for (let i = 0; i <= divisions; i++) {
-      const f = i / divisions;
-      ctx.beginPath();
-      ctx.moveTo(oL, lerp(oT, oB, f));
-      ctx.lineTo(iL, lerp(iT, iB, f));
-      ctx.stroke();
-    }
+    // ─── Cross rings: nested rectangles, eased spacing ───
+    ctx.strokeStyle = lineColor;
 
-    // Right wall: right outer edge → right inner edge
-    for (let i = 0; i <= divisions; i++) {
-      const f = i / divisions;
-      ctx.beginPath();
-      ctx.moveTo(oR, lerp(oT, oB, f));
-      ctx.lineTo(iR, lerp(iT, iB, f));
-      ctx.stroke();
-    }
-
-    // ─── Cross rings: nested rectangles from outer to inner square ───
     for (let i = -1; i <= layers + 1; i++) {
-      const t = (i + scrollNorm) / layers;
-      if (t < 0 || t > 1) continue;
+      const raw = (i + scrollNorm) / layers;
+      if (raw < 0 || raw > 1) continue;
+
+      // Quadratic ease — more space near center, less bunching
+      const t = Math.pow(raw, 1.4);
 
       const rL = lerp(oL, iL, t);
       const rT = lerp(oT, iT, t);
@@ -113,14 +138,14 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
 
       const rW = rR - rL;
       const rH = rB - rT;
-      if (rW < 2 || rH < 2) continue;
+      if (rW < 3 || rH < 3) continue;
 
       ctx.beginPath();
       ctx.rect(rL, rT, rW, rH);
       ctx.stroke();
     }
 
-    // ─── Inner square outline (always visible, slightly brighter) ───
+    // ─── Inner square outline ───
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
     ctx.beginPath();
     ctx.rect(iL, iT, squareSize, squareSize);

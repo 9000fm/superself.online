@@ -391,6 +391,7 @@ export default function Home() {
       <a href="#main-content" className="skip-link">Skip to main content</a>
       {/* Frame border */}
       <div
+        data-frame
         style={{
           position: 'absolute',
           top: frameInset,
