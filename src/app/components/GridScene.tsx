@@ -3,18 +3,25 @@
 import { useRef, useEffect } from 'react';
 
 // ─── 2D Perspective Grid ───
-// Positioned with the SAME CSS insets as the frame border.
-// Draws from (0,0) to fill the canvas — alignment is guaranteed.
-// Converging lines per-wall (clipped to their own trapezoid).
-// Inner square at center stays blank.
+//
+// Logic (matching the SUPERSELF logo):
+//
+// 1. OUTER RECT = the marquee frame (read from DOM via [data-frame])
+// 2. INNER SQUARE = perfect square, centered inside outer rect
+// 3. FOUR CORNERS = diagonals from outer corners to inner corners
+//    These divide the space into 4 trapezoidal "walls"
+// 4. EACH WALL gets grid lines:
+//    - Depth lines: from points on outer edge to corresponding points on inner edge
+//    - Cross lines: connecting the two diagonal edges at regular depth intervals
+//
+// Full-viewport canvas. Coordinates read from the actual frame element.
+// No CSS positioning tricks — alignment guaranteed by DOM measurement.
 
 interface GridSceneProps {
   isVisible?: boolean;
-  frameInset: string;       // CSS value for top/left/right
-  frameInsetBottom: string;  // CSS value for bottom
 }
 
-export default function GridScene({ isVisible = true, frameInset, frameInsetBottom }: GridSceneProps) {
+export default function GridScene({ isVisible = true }: GridSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const scrollRef = useRef(0);
@@ -28,128 +35,144 @@ export default function GridScene({ isVisible = true, frameInset, frameInsetBott
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
+      // Read the frame element's position
+      const frameEl = document.querySelector('[data-frame]');
+      if (!frameEl) return;
+      const rect = frameEl.getBoundingClientRect();
+      // Skip if frame isn't visible yet (display:none → zero rect)
+      if (rect.width < 10 || rect.height < 10) return;
+
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      // Use the canvas element's actual rendered size
-      const w = canvas.clientWidth;
-      const h = canvas.clientHeight;
-      if (w === 0 || h === 0) return;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
 
-      canvas.width = w * dpr;
-      canvas.height = h * dpr;
+      canvas.width = vw * dpr;
+      canvas.height = vh * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, vw, vh);
 
-      // Outer rect = full canvas (which IS the frame)
-      const oL = 0;
-      const oT = 0;
-      const oR = w;
-      const oB = h;
+      // ─── Step 1: Outer rectangle (= frame border, exact pixels) ───
+      const oL = rect.left;
+      const oT = rect.top;
+      const oR = rect.right;
+      const oB = rect.bottom;
+      const oW = oR - oL;
+      const oH = oB - oT;
 
-      // Center
-      const cx = w / 2;
-      const cy = h / 2;
-
-      // Inner square: perfect square, 10% of smallest side
-      const squareSize = Math.min(w, h) * 0.10;
+      // ─── Step 2: Inner square (centered, perfect square) ───
+      const cx = (oL + oR) / 2;
+      const cy = (oT + oB) / 2;
+      const squareSize = Math.min(oW, oH) * 0.10;
       const iL = cx - squareSize / 2;
       const iT = cy - squareSize / 2;
       const iR = cx + squareSize / 2;
       const iB = cy + squareSize / 2;
 
-      const divisions = 8;
-      const layers = 10;
-      const layerStep = 1 / layers;
-      const scrollNorm = (scrollRef.current % layerStep) / layerStep;
+      const divisions = 6; // lines per wall edge (fewer = cleaner)
+      const depthSteps = 8; // cross lines per wall
+
       const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
-      ctx.clearRect(0, 0, w, h);
+      // Scroll offset for cross line animation
+      const stepSize = 1 / depthSteps;
+      const scrollNorm = (scrollRef.current % stepSize) / stepSize;
+
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
       ctx.lineWidth = 1;
 
-      // ─── Converging lines per wall (clipped to own trapezoid) ───
-
-      // Top wall: trapezoid from top outer edge to top inner square edge
-      ctx.save();
+      // ─── Step 3: Four corner diagonals ───
       ctx.beginPath();
-      ctx.moveTo(oL, oT); ctx.lineTo(oR, oT);
-      ctx.lineTo(iR, iT); ctx.lineTo(iL, iT);
-      ctx.closePath();
-      ctx.clip();
-      for (let i = 0; i <= divisions; i++) {
+      ctx.moveTo(oL, oT); ctx.lineTo(iL, iT); // top-left
+      ctx.moveTo(oR, oT); ctx.lineTo(iR, iT); // top-right
+      ctx.moveTo(oL, oB); ctx.lineTo(iL, iB); // bottom-left
+      ctx.moveTo(oR, oB); ctx.lineTo(iR, iB); // bottom-right
+      ctx.stroke();
+
+      // ─── Step 4: Depth lines per wall ───
+      // Each wall: evenly spaced lines from outer edge to inner edge
+
+      // Top wall
+      for (let i = 1; i < divisions; i++) {
         const f = i / divisions;
         ctx.beginPath();
         ctx.moveTo(lerp(oL, oR, f), oT);
         ctx.lineTo(lerp(iL, iR, f), iT);
         ctx.stroke();
       }
-      ctx.restore();
 
       // Bottom wall
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(oL, oB); ctx.lineTo(oR, oB);
-      ctx.lineTo(iR, iB); ctx.lineTo(iL, iB);
-      ctx.closePath();
-      ctx.clip();
-      for (let i = 0; i <= divisions; i++) {
+      for (let i = 1; i < divisions; i++) {
         const f = i / divisions;
         ctx.beginPath();
         ctx.moveTo(lerp(oL, oR, f), oB);
         ctx.lineTo(lerp(iL, iR, f), iB);
         ctx.stroke();
       }
-      ctx.restore();
 
       // Left wall
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(oL, oT); ctx.lineTo(oL, oB);
-      ctx.lineTo(iL, iB); ctx.lineTo(iL, iT);
-      ctx.closePath();
-      ctx.clip();
-      for (let i = 0; i <= divisions; i++) {
+      for (let i = 1; i < divisions; i++) {
         const f = i / divisions;
         ctx.beginPath();
         ctx.moveTo(oL, lerp(oT, oB, f));
         ctx.lineTo(iL, lerp(iT, iB, f));
         ctx.stroke();
       }
-      ctx.restore();
 
       // Right wall
-      ctx.save();
-      ctx.beginPath();
-      ctx.moveTo(oR, oT); ctx.lineTo(oR, oB);
-      ctx.lineTo(iR, iB); ctx.lineTo(iR, iT);
-      ctx.closePath();
-      ctx.clip();
-      for (let i = 0; i <= divisions; i++) {
+      for (let i = 1; i < divisions; i++) {
         const f = i / divisions;
         ctx.beginPath();
         ctx.moveTo(oR, lerp(oT, oB, f));
         ctx.lineTo(iR, lerp(iT, iB, f));
         ctx.stroke();
       }
-      ctx.restore();
 
-      // ─── Cross rings ───
-      for (let i = -1; i <= layers + 1; i++) {
-        const raw = (i + scrollNorm) / layers;
-        if (raw < 0 || raw > 1) continue;
+      // ─── Step 5: Cross lines per wall (animated) ───
+      // Each cross line connects the two diagonal edges of a wall at a given depth t
 
-        const rL = lerp(oL, iL, raw);
-        const rT = lerp(oT, iT, raw);
-        const rR = lerp(oR, iR, raw);
-        const rB = lerp(oB, iB, raw);
+      for (let i = -1; i <= depthSteps + 1; i++) {
+        const t = (i + scrollNorm) / depthSteps;
+        if (t <= 0 || t >= 1) continue;
 
-        if (rR - rL < 3 || rB - rT < 3) continue;
-
+        // Top wall cross line: horizontal line from left diagonal to right diagonal
+        const topY = lerp(oT, iT, t);
+        const topXL = lerp(oL, iL, t);
+        const topXR = lerp(oR, iR, t);
         ctx.beginPath();
-        ctx.rect(rL, rT, rR - rL, rB - rT);
+        ctx.moveTo(topXL, topY);
+        ctx.lineTo(topXR, topY);
+        ctx.stroke();
+
+        // Bottom wall cross line
+        const botY = lerp(oB, iB, t);
+        const botXL = lerp(oL, iL, t);
+        const botXR = lerp(oR, iR, t);
+        ctx.beginPath();
+        ctx.moveTo(botXL, botY);
+        ctx.lineTo(botXR, botY);
+        ctx.stroke();
+
+        // Left wall cross line: vertical line from top diagonal to bottom diagonal
+        const leftX = lerp(oL, iL, t);
+        const leftYT = lerp(oT, iT, t);
+        const leftYB = lerp(oB, iB, t);
+        ctx.beginPath();
+        ctx.moveTo(leftX, leftYT);
+        ctx.lineTo(leftX, leftYB);
+        ctx.stroke();
+
+        // Right wall cross line
+        const rightX = lerp(oR, iR, t);
+        const rightYT = lerp(oT, iT, t);
+        const rightYB = lerp(oB, iB, t);
+        ctx.beginPath();
+        ctx.moveTo(rightX, rightYT);
+        ctx.lineTo(rightX, rightYB);
         ctx.stroke();
       }
 
-      // ─── Inner square outline ───
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      // ─── Step 6: Inner square outline ───
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
       ctx.beginPath();
       ctx.rect(iL, iT, squareSize, squareSize);
       ctx.stroke();
@@ -179,10 +202,9 @@ export default function GridScene({ isVisible = true, frameInset, frameInsetBott
       ref={canvasRef}
       style={{
         position: 'absolute',
-        top: frameInset,
-        left: frameInset,
-        right: frameInset,
-        bottom: frameInsetBottom,
+        inset: 0,
+        width: '100%',
+        height: '100%',
         zIndex: 1,
         opacity: isVisible ? 1 : 0,
         transition: 'opacity 1.5s ease',
