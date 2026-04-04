@@ -3,9 +3,9 @@
 import { useRef, useEffect, useCallback } from 'react';
 
 // ─── 2D Perspective Grid ───
-// Nested rectangles from outer frame to center point.
-// Converging lines radiate from center to edge points (no crossing).
-// All lines solid white, no opacity tricks.
+// Outer rectangle (=marquee frame) → inner square (blank center).
+// Each wall connects its edge points to the corresponding inner square edge.
+// No lines inside the square — it stays empty.
 
 interface GridSceneProps {
   isVisible?: boolean;
@@ -30,91 +30,101 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
     canvas.height = vh * dpr;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    // Frame inset (matches CSS: clamp(30px, 5vw, 60px))
-    const inset = Math.max(30, Math.min(vw * 0.05, 60));
+    // Frame inset — match the marquee exactly
+    // CSS uses: max(clamp(30px, 5vw, 60px), env(safe-area-inset-*, 0px))
+    // Subtract 0.5 so grid lines sit ON the frame border
+    const inset = Math.max(30, Math.min(vw * 0.05, 60)) - 0.5;
 
-    // Outer rectangle = the marquee frame
+    // Outer rectangle (marquee frame edges)
     const oL = inset;
     const oT = inset;
     const oR = vw - inset;
     const oB = vh - inset;
+    const oW = oR - oL;
+    const oH = oB - oT;
 
-    // Center point (vanishing point)
+    // Inner square — perfect square, centered, visible size
     const cx = vw / 2;
     const cy = vh / 2;
+    const squareSize = Math.min(oW, oH) * 0.12;
+    const iL = cx - squareSize / 2;
+    const iT = cy - squareSize / 2;
+    const iR = cx + squareSize / 2;
+    const iB = cy + squareSize / 2;
 
-    // Grid config
-    const divisions = 8;     // lines per edge
-    const layers = 14;       // nested rectangles
-
-    // Scroll offset
+    const divisions = 8;
+    const layers = 12;
     const layerStep = 1 / layers;
     const scrollNorm = (scrollRef.current % layerStep) / layerStep;
 
     const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
     ctx.clearRect(0, 0, vw, vh);
-    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
     ctx.lineWidth = 1;
 
-    // ─── Converging lines: from edge points straight to center ───
-    // These are static — they define the perspective "rails"
+    // ─── Converging lines: each wall connects to its own inner square edge ───
 
-    // Top edge → center
+    // Top wall: top outer edge → top inner edge
     for (let i = 0; i <= divisions; i++) {
-      const x = lerp(oL, oR, i / divisions);
+      const f = i / divisions;
       ctx.beginPath();
-      ctx.moveTo(x, oT);
-      ctx.lineTo(cx, cy);
-      ctx.stroke();
-    }
-    // Bottom edge → center
-    for (let i = 0; i <= divisions; i++) {
-      const x = lerp(oL, oR, i / divisions);
-      ctx.beginPath();
-      ctx.moveTo(x, oB);
-      ctx.lineTo(cx, cy);
-      ctx.stroke();
-    }
-    // Left edge → center
-    for (let i = 0; i <= divisions; i++) {
-      const y = lerp(oT, oB, i / divisions);
-      ctx.beginPath();
-      ctx.moveTo(oL, y);
-      ctx.lineTo(cx, cy);
-      ctx.stroke();
-    }
-    // Right edge → center
-    for (let i = 0; i <= divisions; i++) {
-      const y = lerp(oT, oB, i / divisions);
-      ctx.beginPath();
-      ctx.moveTo(oR, y);
-      ctx.lineTo(cx, cy);
+      ctx.moveTo(lerp(oL, oR, f), oT);
+      ctx.lineTo(lerp(iL, iR, f), iT);
       ctx.stroke();
     }
 
-    // ─── Cross rings: nested rectangles shrinking toward center ───
-    // Animated — drift inward smoothly
+    // Bottom wall: bottom outer edge → bottom inner edge
+    for (let i = 0; i <= divisions; i++) {
+      const f = i / divisions;
+      ctx.beginPath();
+      ctx.moveTo(lerp(oL, oR, f), oB);
+      ctx.lineTo(lerp(iL, iR, f), iB);
+      ctx.stroke();
+    }
 
+    // Left wall: left outer edge → left inner edge
+    for (let i = 0; i <= divisions; i++) {
+      const f = i / divisions;
+      ctx.beginPath();
+      ctx.moveTo(oL, lerp(oT, oB, f));
+      ctx.lineTo(iL, lerp(iT, iB, f));
+      ctx.stroke();
+    }
+
+    // Right wall: right outer edge → right inner edge
+    for (let i = 0; i <= divisions; i++) {
+      const f = i / divisions;
+      ctx.beginPath();
+      ctx.moveTo(oR, lerp(oT, oB, f));
+      ctx.lineTo(iR, lerp(iT, iB, f));
+      ctx.stroke();
+    }
+
+    // ─── Cross rings: nested rectangles from outer to inner square ───
     for (let i = -1; i <= layers + 1; i++) {
       const t = (i + scrollNorm) / layers;
       if (t < 0 || t > 1) continue;
 
-      // Ease: slow down near center so rings don't bunch up
-      const eased = t;
+      const rL = lerp(oL, iL, t);
+      const rT = lerp(oT, iT, t);
+      const rR = lerp(oR, iR, t);
+      const rB = lerp(oB, iB, t);
 
-      const rL = lerp(oL, cx, eased);
-      const rT = lerp(oT, cy, eased);
-      const rR = lerp(oR, cx, eased);
-      const rB = lerp(oB, cy, eased);
-
-      // Skip if rectangle is too small to see
-      if (rR - rL < 2 || rB - rT < 2) continue;
+      const rW = rR - rL;
+      const rH = rB - rT;
+      if (rW < 2 || rH < 2) continue;
 
       ctx.beginPath();
-      ctx.rect(rL, rT, rR - rL, rB - rT);
+      ctx.rect(rL, rT, rW, rH);
       ctx.stroke();
     }
+
+    // ─── Inner square outline (always visible, slightly brighter) ───
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.beginPath();
+    ctx.rect(iL, iT, squareSize, squareSize);
+    ctx.stroke();
   }, []);
 
   useEffect(() => {
@@ -122,7 +132,7 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
 
     const animate = () => {
       if (!running) return;
-      scrollRef.current += 0.0004; // slow drift
+      scrollRef.current += 0.0004;
       draw();
       rafRef.current = requestAnimationFrame(animate);
     };
