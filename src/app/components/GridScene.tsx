@@ -62,7 +62,7 @@ export default function GridScene() {
       const depthEase = (t: number) => 1 - Math.pow(1 - t, 3);
 
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 2;
 
       // ─── Corner diagonals ───
       ctx.beginPath();
