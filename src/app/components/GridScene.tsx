@@ -13,7 +13,6 @@ export default function GridScene() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const scrollRef = useRef(0);
-
   useEffect(() => {
     let running = true;
 
@@ -61,8 +60,17 @@ export default function GridScene() {
 
       const depthEase = (t: number) => 1 - Math.pow(1 - t, 3);
 
+      // ─── Center glow (drawn first, behind everything) ───
+      const glowRadius = Math.min(w, h) * 0.3;
+      const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, glowRadius);
+      glow.addColorStop(0, 'rgba(255, 255, 255, 0.02)');
+      glow.addColorStop(0.5, 'rgba(255, 255, 255, 0.008)');
+      glow.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, w, h);
+
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
-      ctx.lineWidth = 1;
+      ctx.lineWidth = 0.5; // thin lines, especially for high-DPR mobile
 
       // ─── Corner diagonals ───
       ctx.beginPath();
@@ -103,10 +111,11 @@ export default function GridScene() {
       }
 
       // ─── Inner rectangle outline ───
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.35)';
       ctx.beginPath();
       ctx.rect(snap(iL), snap(iT), Math.round(iW), Math.round(iH));
       ctx.stroke();
+
     };
 
     const animate = () => {
