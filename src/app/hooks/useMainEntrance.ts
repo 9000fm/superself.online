@@ -283,18 +283,12 @@ export function useMainEntrance({
         setBurgerVisible(true);
       }, timings.burger);
 
-      // Step 5: Show welcome popup (skip if replay)
-      const welcomeTimer = isReplay ? null : setTimeout(() => {
-        onShowWelcomePopup();
-      }, timings.popup);
-
       return () => {
         if (scrambleTimeout) clearTimeout(scrambleTimeout);
         if (frameTimer) clearTimeout(frameTimer);
         clearTimeout(titleTimer);
         if (bgTimer) clearTimeout(bgTimer);
         if (burgerTimer) clearTimeout(burgerTimer);
-        if (welcomeTimer) clearTimeout(welcomeTimer);
       };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

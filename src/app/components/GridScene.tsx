@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useMemo, useEffect, useState } from 'react';
-import { Canvas, useFrame, useThree } from '@react-three/fiber';
+import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 // ─── Perspective Grid Tunnel ───
@@ -11,21 +11,24 @@ import * as THREE from 'three';
 // as projected by the camera's FOV.
 
 interface GridTunnelProps {
-  /** Half-width of tunnel opening in world units (computed from frame) */
   halfW: number;
-  /** Half-height of tunnel opening in world units (computed from frame) */
   halfH: number;
   depth?: number;
-  gridSpacing?: number;
+  /** Number of grid divisions on each wall edge (same count everywhere) */
+  divisions?: number;
 }
 
-function GridTunnel({ halfW, halfH, depth = 50, gridSpacing = 1.0 }: GridTunnelProps) {
+function GridTunnel({ halfW, halfH, depth = 50, divisions = 8 }: GridTunnelProps) {
   const linesRef = useRef<THREE.LineSegments>(null);
+
+  // Step sizes: divide each wall by the SAME number of divisions
+  const stepW = (halfW * 2) / divisions;  // horizontal step (floor/ceiling)
+  const stepH = (halfH * 2) / divisions;  // vertical step (left/right walls)
+  const stepZ = depth / (divisions * 2);  // depth step (cross lines)
 
   const geometry = useMemo(() => {
     const positions: number[] = [];
     const colors: number[] = [];
-    const step = gridSpacing;
 
     const addLine = (
       x1: number, y1: number, z1: number,
@@ -36,56 +39,53 @@ function GridTunnel({ halfW, halfH, depth = 50, gridSpacing = 1.0 }: GridTunnelP
       colors.push(b1, b1, b1, b2, b2, b2);
     };
 
-    // Brightness fades with depth
     const brightness = (z: number) => {
       const t = Math.abs(z) / depth;
       return Math.max(0.02, 0.4 * Math.pow(1 - t, 1.8));
     };
 
-    // ─── Longitudinal lines (into depth) ───
+    const b0 = brightness(0);
+    const bEnd = brightness(depth);
 
-    // Floor
-    for (let x = -halfW; x <= halfW + 0.01; x += step) {
-      addLine(x, -halfH, 0, x, -halfH, -depth, brightness(0), brightness(depth));
-    }
-    // Ceiling
-    for (let x = -halfW; x <= halfW + 0.01; x += step) {
-      addLine(x, halfH, 0, x, halfH, -depth, brightness(0), brightness(depth));
-    }
-    // Left wall
-    for (let y = -halfH; y <= halfH + 0.01; y += step) {
-      addLine(-halfW, y, 0, -halfW, y, -depth, brightness(0), brightness(depth));
-    }
-    // Right wall
-    for (let y = -halfH; y <= halfH + 0.01; y += step) {
-      addLine(halfW, y, 0, halfW, y, -depth, brightness(0), brightness(depth));
+    // ─── Longitudinal lines (into depth) — same count on each wall ───
+
+    // Floor + Ceiling: divisions+1 lines across width
+    for (let i = 0; i <= divisions; i++) {
+      const x = -halfW + i * stepW;
+      addLine(x, -halfH, 0, x, -halfH, -depth, b0, bEnd);  // floor
+      addLine(x, halfH, 0, x, halfH, -depth, b0, bEnd);     // ceiling
     }
 
-    // ─── Cross lines (at depth intervals) ───
-    for (let z = 0; z >= -depth; z -= step) {
+    // Left + Right walls: divisions+1 lines across height
+    for (let i = 0; i <= divisions; i++) {
+      const y = -halfH + i * stepH;
+      addLine(-halfW, y, 0, -halfW, y, -depth, b0, bEnd);   // left
+      addLine(halfW, y, 0, halfW, y, -depth, b0, bEnd);     // right
+    }
+
+    // ─── Cross lines (at regular depth intervals) ───
+    const depthDivisions = divisions * 2;
+    for (let i = 0; i <= depthDivisions; i++) {
+      const z = -(i * stepZ);
       const b = brightness(Math.abs(z));
-      // Floor
-      addLine(-halfW, -halfH, z, halfW, -halfH, z, b, b);
-      // Ceiling
-      addLine(-halfW, halfH, z, halfW, halfH, z, b, b);
-      // Left wall
-      addLine(-halfW, -halfH, z, -halfW, halfH, z, b, b);
-      // Right wall
-      addLine(halfW, -halfH, z, halfW, halfH, z, b, b);
+      addLine(-halfW, -halfH, z, halfW, -halfH, z, b, b);   // floor
+      addLine(-halfW, halfH, z, halfW, halfH, z, b, b);     // ceiling
+      addLine(-halfW, -halfH, z, -halfW, halfH, z, b, b);   // left
+      addLine(halfW, -halfH, z, halfW, halfH, z, b, b);     // right
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     return geo;
-  }, [halfW, halfH, depth, gridSpacing]);
+  }, [halfW, halfH, depth, divisions, stepW, stepH, stepZ]);
 
-  // Subtle drift — cross lines slowly scroll toward viewer
+  // Subtle drift — grid scrolls toward viewer
   const scrollRef = useRef(0);
   useFrame((_, delta) => {
     if (!linesRef.current) return;
     scrollRef.current += delta * 0.15;
-    linesRef.current.position.z = scrollRef.current % gridSpacing;
+    linesRef.current.position.z = scrollRef.current % stepZ;
   });
 
   return (
@@ -95,38 +95,6 @@ function GridTunnel({ halfW, halfH, depth = 50, gridSpacing = 1.0 }: GridTunnelP
   );
 }
 
-// ─── Camera controller: subtle position offset (no rotation) ───
-// Moves camera position slightly with mouse for parallax depth feel
-// without rotating, so the tunnel frame alignment stays perfect.
-function CameraController({ cameraZ }: { cameraZ: number }) {
-  const { camera } = useThree();
-  const mouseRef = useRef(new THREE.Vector2(0, 0));
-  const targetRef = useRef(new THREE.Vector2(0, 0));
-
-  useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      targetRef.current.set(
-        (e.clientX / window.innerWidth) * 2 - 1,
-        -(e.clientY / window.innerHeight) * 2 + 1
-      );
-    };
-    window.addEventListener('mousemove', handler);
-    return () => window.removeEventListener('mousemove', handler);
-  }, []);
-
-  useFrame(() => {
-    mouseRef.current.x += (targetRef.current.x - mouseRef.current.x) * 0.02;
-    mouseRef.current.y += (targetRef.current.y - mouseRef.current.y) * 0.02;
-    // Subtle position offset — no rotation, alignment stays intact
-    camera.position.x = mouseRef.current.x * 0.15;
-    camera.position.y = mouseRef.current.y * 0.1;
-    camera.position.z = cameraZ;
-    // Always look straight ahead
-    camera.lookAt(camera.position.x * 0.5, camera.position.y * 0.5, -50);
-  });
-
-  return null;
-}
 
 // ─── Compute tunnel dimensions to match the frame ───
 // Given camera FOV + distance, compute world-space size that maps to
@@ -178,7 +146,6 @@ function Scene({ fov, cameraZ }: { fov: number; cameraZ: number }) {
   return (
     <>
       <GridTunnel halfW={halfW} halfH={halfH} />
-      <CameraController cameraZ={cameraZ} />
     </>
   );
 }
