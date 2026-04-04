@@ -2,7 +2,6 @@
 
 import { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
-import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
 
 // ─── Perspective Grid Tunnel ───
@@ -180,14 +179,6 @@ function Scene({ fov, cameraZ }: { fov: number; cameraZ: number }) {
     <>
       <GridTunnel halfW={halfW} halfH={halfH} />
       <CameraController cameraZ={cameraZ} />
-      <EffectComposer>
-        <Bloom
-          intensity={0.3}
-          luminanceThreshold={0.2}
-          luminanceSmoothing={0.9}
-          mipmapBlur
-        />
-      </EffectComposer>
     </>
   );
 }
@@ -212,7 +203,7 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
     }}>
       <Canvas
         camera={{ position: [0, 0, CAM_Z], fov: CAM_FOV, near: 0.1, far: 100 }}
-        dpr={[1, 2]}
+        dpr={[1, 1.5]}
         gl={{ antialias: true, alpha: true }}
         style={{ background: 'transparent' }}
       >

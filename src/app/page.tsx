@@ -46,9 +46,11 @@ function randomVisualState() {
   return { macros, config, palette, algorithm };
 }
 
-// Lazy-load SFX Panel and 3D Grid Scene
+// Lazy-load SFX Panel
 const SfxPanel = React.lazy(() => import('./components/SfxPanel'));
-const GridScene = React.lazy(() => import('./components/GridScene'));
+
+// Grid scene — imported directly (not lazy) so WebGL initializes during boot
+import GridScene from './components/GridScene';
 
 // Isolated spinner component to prevent re-renders on main component
 function Spinner() {
@@ -547,9 +549,7 @@ export default function Home() {
           cursor: 'crosshair',
         }}
       >
-        <Suspense fallback={null}>
-          <GridScene isVisible={entrance.showFooter} />
-        </Suspense>
+        <GridScene isVisible={entrance.showFooter} />
       </div>
 
       {/* Social icons */}
