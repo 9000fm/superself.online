@@ -52,10 +52,14 @@ export default function GridScene() {
       const iB = cy + iH / 2;
 
       const divisions = 6;
-      const depthSteps = 8;
+      const depthSteps = 12; // more rings for density near center
       const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
       const stepSize = 1 / depthSteps;
       const scrollNorm = (scrollRef.current % stepSize) / stepSize;
+
+      // Ease function: bunches values toward 1 (center) for depth illusion
+      // t^0.5 = more rings near center, spread out near edges
+      const depthEase = (t: number) => Math.pow(t, 0.55);
 
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
       ctx.lineWidth = 1;
@@ -79,10 +83,11 @@ export default function GridScene() {
         ctx.stroke();
       }
 
-      // ─── Cross lines per wall (animated) ───
+      // ─── Cross lines per wall (animated, denser near center) ───
       for (let i = -1; i <= depthSteps + 1; i++) {
-        const t = (i + scrollNorm) / depthSteps;
-        if (t <= 0 || t >= 1) continue;
+        const rawT = (i + scrollNorm) / depthSteps;
+        if (rawT <= 0 || rawT >= 1) continue;
+        const t = depthEase(rawT); // apply easing for depth density
 
         const topY = lerp(oT, iT, t);
         const botY = lerp(oB, iB, t);
