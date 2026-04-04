@@ -389,7 +389,7 @@ export default function Home() {
       }}
     >
       <a href="#main-content" className="skip-link">Skip to main content</a>
-      {/* Frame border */}
+      {/* Frame border — now drawn by GridScene canvas, hidden here to avoid double border */}
       <div
         data-frame
         style={{
@@ -398,11 +398,8 @@ export default function Home() {
           left: frameInset,
           right: frameInset,
           bottom: frameInsetBottom,
-          display: showMainContent ? 'block' : 'none',
+          display: 'none',
           pointerEvents: 'none',
-          border: '1px solid rgba(255,255,255,0.4)',
-          opacity: entrance.showFrame ? 1 : 0,
-          transition: 'opacity 0.6s ease-in-out',
         }}
       />
 
