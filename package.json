@@ -1,12 +1,28 @@
 {
   "name": "superself.online",
-  "version": "0.1.0",
+  "version": "3.0.0",
+  "description": "SUPERSELF — Electronic music label & creative collective. Web experience with WebGL visuals.",
+  "author": "SUPERSELF <flavio@superself.online>",
+  "license": "UNLICENSED",
   "private": true,
+  "homepage": "https://superself.online",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/9000fm/superself.online"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "lint:fix": "eslint --fix",
+    "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,tsx,css}\"",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf .next out"
   },
   "dependencies": {
     "@react-three/drei": "^10.7.7",
