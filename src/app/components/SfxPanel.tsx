@@ -11,6 +11,7 @@ import {
   BOOLEAN_MACROS,
   computeConfigFromMacros,
   randomizeMacros,
+  ALGORITHM_NAMES,
 } from '../vj';
 import type { MacroState } from '../vj';
 import { PALETTE_KEYS, DEFAULT_PALETTE } from '../AsciiArt';
@@ -19,6 +20,7 @@ import type { Config } from '../AsciiArt';
 interface SfxPanelProps {
   onConfigChange: (overrides: Partial<Config>) => void;
   onPaletteChange: (palette: string) => void;
+  onAlgorithmChange: (algorithm: string) => void;
   onClose: () => void;
   onCapture: () => void;
 }
@@ -48,9 +50,10 @@ const PRESET_KEYS = Object.keys(PRESETS);
 
 /* ── Component ───────────────────────────────────────────── */
 
-export default function SfxPanel({ onConfigChange, onPaletteChange, onClose, onCapture }: SfxPanelProps) {
+export default function SfxPanel({ onConfigChange, onPaletteChange, onAlgorithmChange, onClose, onCapture }: SfxPanelProps) {
   const [macros, setMacros] = useState<MacroState>({ ...MACRO_DEFAULTS });
   const [palette, setPalette] = useState<string>(DEFAULT_PALETTE);
+  const [algorithm, setAlgorithm] = useState<string>('waves');
   const [preset, setPreset] = useState<string>('INIT');
 
   // Internal drag state — start centered horizontally, bottom-anchored
@@ -299,7 +302,7 @@ export default function SfxPanel({ onConfigChange, onPaletteChange, onClose, onC
           display: 'flex',
           alignItems: 'center',
           gap: '4px',
-          marginBottom: '6px',
+          marginBottom: '4px',
         }}>
           <span style={{ fontSize: '11px', flexShrink: 0 }}>PALETTE</span>
           <select
@@ -319,6 +322,30 @@ export default function SfxPanel({ onConfigChange, onPaletteChange, onClose, onC
           >
             pic
           </Win95Button>
+        </div>
+
+        {/* Algorithm row */}
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+          marginBottom: '6px',
+        }}>
+          <span style={{ fontSize: '11px', flexShrink: 0 }}>ENGINE</span>
+          <select
+            value={algorithm}
+            onChange={(e) => {
+              setAlgorithm(e.target.value);
+              onAlgorithmChange(e.target.value);
+              setPreset('');
+            }}
+            aria-label="Algorithm"
+            style={selectStyle}
+          >
+            {ALGORITHM_NAMES.map(k => (
+              <option key={k} value={k}>{k}</option>
+            ))}
+          </select>
         </div>
 
         {/* Groove separator */}

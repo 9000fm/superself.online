@@ -1,12 +1,14 @@
 'use client';
 
 import { useEffect, useState, useMemo, useRef, useCallback, forwardRef, useImperativeHandle } from 'react';
+import { getAlgorithm, type AlgorithmFn, type AlgorithmName } from './vj/algorithms';
 
 interface AsciiArtProps {
   color?: string;
   isVisible?: boolean;
   configOverrides?: Partial<Config>;
   paletteOverride?: string;
+  algorithmOverride?: string;
 }
 
 interface Sparkle {
@@ -263,7 +265,7 @@ export interface AsciiArtRef {
   getContainer: () => HTMLDivElement | null;
 }
 
-const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ color = 'white', isVisible = true, configOverrides, paletteOverride }, ref) {
+const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ color = 'white', isVisible = true, configOverrides, paletteOverride, algorithmOverride }, ref) {
   const [frame, setFrame] = useState(0);
   const sparklesRef = useRef<Sparkle[]>([]);
   const [gridSize, setGridSize] = useState({ width: 180, height: 120 });
@@ -324,6 +326,20 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
     blocksLen: activePalette.blocks.length - 1,
     puddleLen: activePalette.puddle.length - 1,
   };
+
+  // Active algorithm — stateful algorithms are created when grid size or name changes
+  const algorithmNameRef = useRef<string>(algorithmOverride || 'waves');
+  const algorithmFnRef = useRef<AlgorithmFn | null>(null);
+  const prevAlgoKey = useRef<string>('');
+
+  // Update algorithm when name or grid size changes
+  const algoKey = `${algorithmOverride || 'waves'}-${gridSize.width}-${gridSize.height}`;
+  if (algoKey !== prevAlgoKey.current) {
+    prevAlgoKey.current = algoKey;
+    const name = (algorithmOverride || 'waves') as AlgorithmName;
+    algorithmNameRef.current = name;
+    algorithmFnRef.current = getAlgorithm(name, gridSize.width, gridSize.height);
+  }
 
   // Convert client coordinates to grid coordinates
   const clientToGrid = useCallback((clientX: number, clientY: number): { x: number; y: number } => {
@@ -776,6 +792,9 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
     const puddleR = puddleStartR + (puddleMaxR - puddleStartR) * easedGrowth;
     const showBlue = blueOpacity > 0.01;
 
+    // Algorithm reference for this frame
+    const algoFn = algorithmFnRef.current;
+
     const whiteLines: string[] = [];
     const blueLines: string[] = [];
     let idx = 0;
@@ -792,23 +811,31 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
         const dist = euclidean + (chebyshev - euclidean) * c.centerFadeShape;
         const centerFade = Math.max(0, 1 - dist * c.centerFadeFalloff);
 
-        // Warp distortion (additive spatial offset)
-        const warpOffset = c.warpMix > 0.001
-          ? c.warpAmp * fastSin(ny * c.warpFreq + time * c.warpSpeed) * c.warpMix
-          : 0;
-        let wnx = nx + warpOffset + time * c.driftSpeedX;
-        const wny = ny + warpOffset * 0.7 + time * c.driftSpeedY;
+        let value: number;
 
-        // Focus: scale down wave frequencies for smoother patterns
-        const focusScale = 1 - c.focusAmount * 0.8;
+        if (algoFn) {
+          // Use pluggable algorithm
+          value = algoFn({ nx, ny, time, frame, centerFade, width, height });
+        } else {
+          // Default: inline wave pattern (Algorithm #1: WAVES)
+          // Warp distortion (additive spatial offset)
+          const warpOffset = c.warpMix > 0.001
+            ? c.warpAmp * fastSin(ny * c.warpFreq + time * c.warpSpeed) * c.warpMix
+            : 0;
+          const wnx = nx + warpOffset + time * c.driftSpeedX;
+          const wny = ny + warpOffset * 0.7 + time * c.driftSpeedY;
 
-        // Base wave pattern
-        const wave1 = fastSin(wnx * c.waveFreq1 * focusScale + frameSpeed1 + wny * c.wavePhase1ny * focusScale);
-        const wave2 = fastSin(wnx * c.waveFreq2 * focusScale - frameSpeed2 + wny * c.wavePhase2ny * focusScale);
-        const wave3 = fastSin(wny * c.waveFreq3ny * focusScale + frameSpeed3 + wnx * c.wavePhase3nx * focusScale);
+          // Focus: scale down wave frequencies for smoother patterns
+          const focusScale = 1 - c.focusAmount * 0.8;
 
-        const combined = wave1 * c.waveMix1 + wave2 * c.waveMix2 + wave3 * c.waveMix3;
-        let value = ((combined + 1) * 0.5) * centerFade;
+          // Base wave pattern
+          const wave1 = fastSin(wnx * c.waveFreq1 * focusScale + frameSpeed1 + wny * c.wavePhase1ny * focusScale);
+          const wave2 = fastSin(wnx * c.waveFreq2 * focusScale - frameSpeed2 + wny * c.wavePhase2ny * focusScale);
+          const wave3 = fastSin(wny * c.waveFreq3ny * focusScale + frameSpeed3 + wnx * c.wavePhase3nx * focusScale);
+
+          const combined = wave1 * c.waveMix1 + wave2 * c.waveMix2 + wave3 * c.waveMix3;
+          value = ((combined + 1) * 0.5) * centerFade;
+        }
 
         // Invert: flip density mapping
         if (c.invertAmount > 0.001) {

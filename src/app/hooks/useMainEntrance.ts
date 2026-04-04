@@ -63,6 +63,8 @@ export function useMainEntrance({
   useEffect(() => {
     if (phase === 'main') {
       const titleText = 'superself';
+      // Is this a replay (title click) or the initial entrance?
+      const isReplay = showFrame && burgerVisible;
 
       // Timings depend on skip mode
       // Footer/burger appear while title is still scrambling
@@ -70,13 +72,14 @@ export function useMainEntrance({
         ? { frame: 300, title: 800, footer: 1500, burger: 2000, popup: 12000 }
         : { frame: 500, title: 900, footer: 2200, burger: 3200, popup: 18000 + Math.random() * 4000 };
 
-      // Step 1: Show frame first
-      const frameTimer = setTimeout(() => {
+      // Step 1: Show frame first (skip if replay)
+      const frameTimer = isReplay ? null : setTimeout(() => {
         setShowFrame(true);
       }, timings.frame);
 
-      // Step 2: Start title scramble after frame is visible
+      // Step 2: Start title scramble (immediate on replay, delayed on first entrance)
       let scrambleTimeout: ReturnType<typeof setTimeout> | null = null;
+      const titleDelay = isReplay ? 0 : timings.title;
       const titleTimer = setTimeout(() => {
         setShowTitlePrompt(true);
 
@@ -268,30 +271,30 @@ export function useMainEntrance({
         }
         // Kick off
         scrambleTimeout = setTimeout(tick, tickRate);
-      }, timings.title);
+      }, titleDelay);
 
-      // Step 3: Show ASCII background
-      const bgTimer = setTimeout(() => {
+      // Step 3: Show ASCII background (skip if replay)
+      const bgTimer = isReplay ? null : setTimeout(() => {
         setShowFooter(true);
       }, timings.footer);
 
-      // Step 4: Show burger (icons and language)
-      const burgerTimer = setTimeout(() => {
+      // Step 4: Show burger (icons and language) (skip if replay)
+      const burgerTimer = isReplay ? null : setTimeout(() => {
         setBurgerVisible(true);
       }, timings.burger);
 
-      // Step 5: Show welcome popup
-      const welcomeTimer = setTimeout(() => {
+      // Step 5: Show welcome popup (skip if replay)
+      const welcomeTimer = isReplay ? null : setTimeout(() => {
         onShowWelcomePopup();
       }, timings.popup);
 
       return () => {
         if (scrambleTimeout) clearTimeout(scrambleTimeout);
-        clearTimeout(frameTimer);
+        if (frameTimer) clearTimeout(frameTimer);
         clearTimeout(titleTimer);
-        clearTimeout(bgTimer);
-        clearTimeout(burgerTimer);
-        clearTimeout(welcomeTimer);
+        if (bgTimer) clearTimeout(bgTimer);
+        if (burgerTimer) clearTimeout(burgerTimer);
+        if (welcomeTimer) clearTimeout(welcomeTimer);
       };
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

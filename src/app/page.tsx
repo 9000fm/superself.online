@@ -83,7 +83,6 @@ export default function Home() {
 
   // Skip and replay state
   const [skipMode, setSkipMode] = useState(false);
-  const [isReplaying, setIsReplaying] = useState(false);
   const [replayTrigger, setReplayTrigger] = useState(0);
   const [rebootCount, setRebootCount] = useState(0);
 
@@ -91,6 +90,7 @@ export default function Home() {
   const [showSfxPanel, setShowSfxPanel] = useState(false);
   const [vjConfigOverrides, setVjConfigOverrides] = useState<Partial<import('./AsciiArt').Config> | undefined>(undefined);
   const [vjPalette, setVjPalette] = useState<string | undefined>(undefined);
+  const [vjAlgorithm, setVjAlgorithm] = useState<string | undefined>(undefined);
 
 
   // Landscape warning
@@ -215,19 +215,9 @@ export default function Home() {
     setTimeout(() => setPhase('main'), 400);
   };
 
-  // Replay entrance
-  const handleReplayEntrance = () => {
-    setIsReplaying(true);
-    setActiveSection(null);
-    setShowWelcomePopup(false);
-    setShowNotification(false);
-    setShowMenuDropdown(false);
-    entrance.resetEntranceState();
-
-    setTimeout(() => {
-      setReplayTrigger((prev) => prev + 1);
-      setIsReplaying(false);
-    }, 150);
+  // Re-scramble title (just the title text, not the full entrance)
+  const handleTitleClick = () => {
+    setReplayTrigger((prev) => prev + 1);
   };
 
   // Welcome popup handlers
@@ -485,7 +475,7 @@ export default function Home() {
           overflow: 'hidden',
           maxWidth: `calc(100vw - ${contentInset} - ${contentInset} - 60px)`,
         }}
-        onClick={handleReplayEntrance}
+        onClick={handleTitleClick}
       >
         <span
           style={{ opacity: entrance.showTitlePrompt ? 1 : 0, display: 'inline-block', width: '1ch', textAlign: 'center' }}
@@ -544,7 +534,7 @@ export default function Home() {
           cursor: 'crosshair',
         }}
       >
-        <AsciiArt ref={asciiRef} color="white" isVisible={entrance.showFooter} configOverrides={vjConfigOverrides} paletteOverride={vjPalette} />
+        <AsciiArt ref={asciiRef} color="white" isVisible={entrance.showFooter} configOverrides={vjConfigOverrides} paletteOverride={vjPalette} algorithmOverride={vjAlgorithm} />
       </div>
 
       {/* Social icons */}
@@ -1119,7 +1109,7 @@ export default function Home() {
       </div>
 
       {/* Skip button */}
-      {phase === 'confirm' && !isReplaying && (
+      {phase === 'confirm' && (
         <div
           onClick={handleSkip}
           style={{
@@ -1147,6 +1137,7 @@ export default function Home() {
           <SfxPanel
             onConfigChange={setVjConfigOverrides}
             onPaletteChange={setVjPalette}
+            onAlgorithmChange={setVjAlgorithm}
             onClose={() => setShowSfxPanel(false)}
             onCapture={handleCapture}
           />
