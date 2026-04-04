@@ -4,15 +4,12 @@ import { useRef, useEffect } from 'react';
 
 // ─── 2D Perspective Grid ───
 //
-// Draws the INNER grid only (diagonals, depth lines, cross lines, inner rect).
-// The OUTER frame border is handled by the CSS frame div — never touched here.
-// Reads frame position from DOM via [data-frame] getBoundingClientRect().
+// This canvas lives INSIDE the frame div. Its (0,0) IS the frame's top-left.
+// No coordinate conversion needed. Alignment is guaranteed by DOM hierarchy.
+// Draws: corner diagonals, depth lines, cross lines, inner rect.
+// Does NOT draw the outer border — the parent div's CSS border handles that.
 
-interface GridSceneProps {
-  isVisible?: boolean;
-}
-
-export default function GridScene({ isVisible = true }: GridSceneProps) {
+export default function GridScene() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const scrollRef = useRef(0);
@@ -26,35 +23,29 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
       const ctx = canvas.getContext('2d');
       if (!ctx) return;
 
-      // Read actual frame position from DOM
-      const frameEl = document.querySelector('[data-frame]');
-      if (!frameEl) return;
-      const rect = frameEl.getBoundingClientRect();
-      if (rect.width < 10 || rect.height < 10) return; // frame not visible yet
+      // Canvas fills the frame div — use its actual rendered size
+      const w = canvas.clientWidth;
+      const h = canvas.clientHeight;
+      if (w < 10 || h < 10) return;
 
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
-      const vw = window.innerWidth;
-      const vh = window.innerHeight;
-
-      canvas.width = vw * dpr;
-      canvas.height = vh * dpr;
+      canvas.width = w * dpr;
+      canvas.height = h * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, vw, vh);
+      ctx.clearRect(0, 0, w, h);
 
-      // Outer rect = frame border position (exact from CSS)
-      const oL = rect.left;
-      const oT = rect.top;
-      const oR = rect.right;
-      const oB = rect.bottom;
-      const oW = oR - oL;
-      const oH = oB - oT;
+      // Outer rect = full canvas = frame content area
+      const oL = 0;
+      const oT = 0;
+      const oR = w;
+      const oB = h;
 
-      // Inner rect: same aspect ratio as frame, 6% scale
-      const cx = (oL + oR) / 2;
-      const cy = (oT + oB) / 2;
+      // Inner rect: same aspect ratio, 6% scale
+      const cx = w / 2;
+      const cy = h / 2;
       const scale = 0.06;
-      const iW = oW * scale;
-      const iH = oH * scale;
+      const iW = w * scale;
+      const iH = h * scale;
       const iL = cx - iW / 2;
       const iT = cy - iH / 2;
       const iR = cx + iW / 2;
@@ -99,13 +90,9 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
         const rightX = lerp(oR, iR, t);
 
         ctx.beginPath();
-        // Top wall cross line
         ctx.moveTo(leftX, topY); ctx.lineTo(rightX, topY);
-        // Bottom wall cross line
         ctx.moveTo(leftX, botY); ctx.lineTo(rightX, botY);
-        // Left wall cross line
         ctx.moveTo(leftX, topY); ctx.lineTo(leftX, botY);
-        // Right wall cross line
         ctx.moveTo(rightX, topY); ctx.lineTo(rightX, botY);
         ctx.stroke();
       }
@@ -141,10 +128,6 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
         inset: 0,
         width: '100%',
         height: '100%',
-        zIndex: 1,
-        opacity: isVisible ? 1 : 0,
-        transition: 'opacity 1.5s ease',
-        pointerEvents: 'none',
       }}
     />
   );

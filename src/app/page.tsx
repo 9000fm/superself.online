@@ -389,7 +389,7 @@ export default function Home() {
       }}
     >
       <a href="#main-content" className="skip-link">Skip to main content</a>
-      {/* Frame border */}
+      {/* Frame border + grid inside it */}
       <div
         data-frame
         style={{
@@ -404,7 +404,9 @@ export default function Home() {
           opacity: entrance.showFrame ? 1 : 0,
           transition: 'opacity 0.6s ease-in-out',
         }}
-      />
+      >
+        <GridScene />
+      </div>
 
       {/* === BOOT / LOADING PHASE === */}
       <div
@@ -550,7 +552,6 @@ export default function Home() {
           cursor: 'crosshair',
         }}
       >
-        <GridScene isVisible={entrance.showFooter} />
       </div>
 
       {/* Social icons */}
