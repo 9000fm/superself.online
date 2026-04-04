@@ -32,6 +32,7 @@ export default function GridScene() {
       canvas.width = w * dpr;
       canvas.height = h * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, w, h);
 
       // Outer rect = full canvas = frame content area
@@ -43,7 +44,7 @@ export default function GridScene() {
       // Inner rect: same aspect ratio, 6% scale
       const cx = w / 2;
       const cy = h / 2;
-      const scale = 0.06;
+      const scale = 0.04;
       const iW = w * scale;
       const iH = h * scale;
       const iL = cx - iW / 2;
@@ -52,34 +53,33 @@ export default function GridScene() {
       const iB = cy + iH / 2;
 
       const divisions = 6;
-      const depthSteps = 12; // more rings for density near center
+      const depthSteps = 20;
+      const snap = (v: number) => Math.round(v) + 0.5;
       const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
       const stepSize = 1 / depthSteps;
       const scrollNorm = (scrollRef.current % stepSize) / stepSize;
 
-      // Ease function: bunches values toward 1 (center) for depth illusion
-      // t^0.5 = more rings near center, spread out near edges
-      const depthEase = (t: number) => Math.pow(t, 0.55);
+      const depthEase = (t: number) => 1 - Math.pow(1 - t, 3);
 
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
       ctx.lineWidth = 1;
 
       // ─── Corner diagonals ───
       ctx.beginPath();
-      ctx.moveTo(oL, oT); ctx.lineTo(iL, iT);
-      ctx.moveTo(oR, oT); ctx.lineTo(iR, iT);
-      ctx.moveTo(oL, oB); ctx.lineTo(iL, iB);
-      ctx.moveTo(oR, oB); ctx.lineTo(iR, iB);
+      ctx.moveTo(snap(oL), snap(oT)); ctx.lineTo(snap(iL), snap(iT));
+      ctx.moveTo(snap(oR), snap(oT)); ctx.lineTo(snap(iR), snap(iT));
+      ctx.moveTo(snap(oL), snap(oB)); ctx.lineTo(snap(iL), snap(iB));
+      ctx.moveTo(snap(oR), snap(oB)); ctx.lineTo(snap(iR), snap(iB));
       ctx.stroke();
 
       // ─── Depth lines per wall ───
       for (let i = 1; i < divisions; i++) {
         const f = i / divisions;
         ctx.beginPath();
-        ctx.moveTo(lerp(oL, oR, f), oT); ctx.lineTo(lerp(iL, iR, f), iT);
-        ctx.moveTo(lerp(oL, oR, f), oB); ctx.lineTo(lerp(iL, iR, f), iB);
-        ctx.moveTo(oL, lerp(oT, oB, f)); ctx.lineTo(iL, lerp(iT, iB, f));
-        ctx.moveTo(oR, lerp(oT, oB, f)); ctx.lineTo(iR, lerp(iT, iB, f));
+        ctx.moveTo(snap(lerp(oL, oR, f)), snap(oT)); ctx.lineTo(snap(lerp(iL, iR, f)), snap(iT));
+        ctx.moveTo(snap(lerp(oL, oR, f)), snap(oB)); ctx.lineTo(snap(lerp(iL, iR, f)), snap(iB));
+        ctx.moveTo(snap(oL), snap(lerp(oT, oB, f))); ctx.lineTo(snap(iL), snap(lerp(iT, iB, f)));
+        ctx.moveTo(snap(oR), snap(lerp(oT, oB, f))); ctx.lineTo(snap(iR), snap(lerp(iT, iB, f)));
         ctx.stroke();
       }
 
@@ -87,12 +87,12 @@ export default function GridScene() {
       for (let i = -1; i <= depthSteps + 1; i++) {
         const rawT = (i + scrollNorm) / depthSteps;
         if (rawT <= 0 || rawT >= 1) continue;
-        const t = depthEase(rawT); // apply easing for depth density
+        const t = depthEase(rawT);
 
-        const topY = lerp(oT, iT, t);
-        const botY = lerp(oB, iB, t);
-        const leftX = lerp(oL, iL, t);
-        const rightX = lerp(oR, iR, t);
+        const topY = snap(lerp(oT, iT, t));
+        const botY = snap(lerp(oB, iB, t));
+        const leftX = snap(lerp(oL, iL, t));
+        const rightX = snap(lerp(oR, iR, t));
 
         ctx.beginPath();
         ctx.moveTo(leftX, topY); ctx.lineTo(rightX, topY);
@@ -105,7 +105,7 @@ export default function GridScene() {
       // ─── Inner rectangle outline ───
       ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
       ctx.beginPath();
-      ctx.rect(iL, iT, iW, iH);
+      ctx.rect(snap(iL), snap(iT), Math.round(iW), Math.round(iH));
       ctx.stroke();
     };
 
