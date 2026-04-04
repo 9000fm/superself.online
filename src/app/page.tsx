@@ -550,7 +550,7 @@ export default function Home() {
           cursor: 'crosshair',
         }}
       >
-        <GridScene isVisible={entrance.showFooter} />
+        <GridScene isVisible={entrance.showFooter} frameInset={frameInset} frameInsetBottom={frameInsetBottom} />
       </div>
 
       {/* Social icons */}
