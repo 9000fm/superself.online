@@ -69,8 +69,8 @@ export function useMainEntrance({
       // Timings depend on skip mode
       // Footer/burger appear while title is still scrambling
       const timings = skipMode
-        ? { frame: 300, title: 800, footer: 1500, burger: 2000, popup: 12000 }
-        : { frame: 500, title: 900, footer: 2200, burger: 3200, popup: 18000 + Math.random() * 4000 };
+        ? { frame: 300, title: 800, footer: 1500, burger: 2000, popup: 8000 }
+        : { frame: 500, title: 900, footer: 2200, burger: 3200, popup: 8000 + Math.random() * 2000 };
 
       // Step 1: Show frame first (skip if replay)
       const frameTimer = isReplay ? null : setTimeout(() => {

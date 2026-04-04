@@ -216,8 +216,7 @@ export default function Home() {
   }, [phase, rebootCount]);
 
   const handleLoadingComplete = useCallback(() => {
-    setPhase('pause');
-    setTimeout(() => setPhase('confirm'), 800);
+    setPhase('confirm');
   }, []);
 
   // Skip handler

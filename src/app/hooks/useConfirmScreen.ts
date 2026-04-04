@@ -105,10 +105,10 @@ export function useConfirmScreen({
         setShowLoadingDots(true);
         const d = dotChar;
         const loadingTimings = [
-          { text: d, delay: 300 },
-          { text: d + d, delay: 600 },
-          { text: d + d + d, delay: 900 },
-          { text: '', delay: 1300 },
+          { text: d, delay: 150 },
+          { text: d + d, delay: 300 },
+          { text: d + d + d, delay: 450 },
+          { text: '', delay: 600 },
         ];
 
         loadingTimings.forEach(({ text, delay }) => {
@@ -120,7 +120,7 @@ export function useConfirmScreen({
           setTimeout(() => {
             setShowLoadingDots(false);
             onSelectYes();
-          }, 1600)
+          }, 800)
         );
       } else {
         onSelectNo();
@@ -221,9 +221,9 @@ export function useConfirmScreen({
                 dotCount++;
                 setWelcomeDots(dotChar.repeat(dotCount));
                 if (dotCount < maxDots) {
-                  addTimer(setTimeout(typeNextDot, jitter(350, 80)));
+                  addTimer(setTimeout(typeNextDot, jitter(180, 40)));
                 } else {
-                  // Pause after dots, then start erase sequence
+                  // Brief pause after dots, then start erase sequence
                   addTimer(
                     setTimeout(() => {
                       // Erase dots right-to-left
@@ -232,7 +232,7 @@ export function useConfirmScreen({
                         dotsRemaining--;
                         if (dotsRemaining > 0) {
                           setWelcomeDots(dotChar.repeat(dotsRemaining));
-                          addTimer(setTimeout(eraseNextDot, jitter(140, 40)));
+                          addTimer(setTimeout(eraseNextDot, jitter(80, 20)));
                         } else {
                           setWelcomeDots('');
                           // Erase welcome text right-to-left
@@ -241,10 +241,10 @@ export function useConfirmScreen({
                             welcomeRemaining--;
                             if (welcomeRemaining > 0) {
                               setTypedWelcome(welcomeText.slice(0, welcomeRemaining));
-                              addTimer(setTimeout(eraseNextChar, jitter(40, 15)));
+                              addTimer(setTimeout(eraseNextChar, jitter(25, 10)));
                             } else {
                               setTypedWelcome('');
-                              // Pause with blinking cursor on empty line
+                              // Brief pause with blinking cursor
                               addTimer(
                                 setTimeout(() => {
                                   // Type confirm question
@@ -254,7 +254,7 @@ export function useConfirmScreen({
                                       confirmIndex++;
                                       addTimer(setTimeout(typeNextConfirm, jitter(60, 25)));
                                     } else {
-                                      // Pause, then type YES
+                                      // Type YES
                                       addTimer(
                                         setTimeout(() => {
                                           const typeNextYes = () => {
@@ -263,7 +263,7 @@ export function useConfirmScreen({
                                               yesIndex++;
                                               addTimer(setTimeout(typeNextYes, jitter(90, 30)));
                                             } else {
-                                              // Small pause, then type NO
+                                              // Type NO
                                               addTimer(
                                                 setTimeout(() => {
                                                   const typeNextNo = () => {
@@ -272,27 +272,27 @@ export function useConfirmScreen({
                                                       noIndex++;
                                                       addTimer(setTimeout(typeNextNo, jitter(90, 30)));
                                                     } else {
-                                                      // Show selector after everything is typed
+                                                      // Show selector
                                                       addTimer(
                                                         setTimeout(() => {
                                                           setShowSelector(true);
                                                           setConfirmLangVisible(true);
-                                                        }, 400)
+                                                        }, 200)
                                                       );
                                                     }
                                                   };
                                                   typeNextNo();
-                                                }, 200)
+                                                }, 100)
                                               );
                                             }
                                           };
                                           typeNextYes();
-                                        }, 400)
+                                        }, 150)
                                       );
                                     }
                                   };
                                   typeNextConfirm();
-                                }, 400)
+                                }, 150)
                               );
                             }
                           };
@@ -300,7 +300,7 @@ export function useConfirmScreen({
                         }
                       };
                       eraseNextDot();
-                    }, 600)
+                    }, 200)
                   );
                 }
               };
@@ -308,7 +308,7 @@ export function useConfirmScreen({
             }
           };
           typeNextWelcome();
-        }, 1000)
+        }, 400)
       );
 
       return () => {
