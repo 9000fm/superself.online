@@ -46,9 +46,9 @@ function randomVisualState() {
   return { macros, config, palette, algorithm };
 }
 
-// Lazy-load SFX Panel and 3D Logo Scene
+// Lazy-load SFX Panel and 3D Grid Scene
 const SfxPanel = React.lazy(() => import('./components/SfxPanel'));
-const LogoScene = React.lazy(() => import('./components/LogoScene'));
+const GridScene = React.lazy(() => import('./components/GridScene'));
 
 // Isolated spinner component to prevent re-renders on main component
 function Spinner() {
@@ -91,9 +91,6 @@ export default function Home() {
   const emailInputRef = useRef<HTMLInputElement>(null);
   const lastClickPos = useRef({ x: 0, y: 0 });
 
-
-  // 3D Logo Scene mode (null = ASCII art, 'particles'|'text3d'|'portal' = R3F)
-  const [logoSceneMode, setLogoSceneMode] = useState<'particles' | 'text3d' | 'portal' | null>('particles');
 
   // Menu state
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
@@ -203,18 +200,17 @@ export default function Home() {
     };
   }, []);
 
-  // Boot sequence
+  // Boot sequence — logo only, 2 seconds, then straight to main
   useEffect(() => {
     if (phase === 'boot') {
-      const logoTimer = setTimeout(() => setShowLogo(true), 600);
-      const loaderTimer = setTimeout(() => {
-        setShowLoader(true);
-        setPhase('loading');
-      }, 1400);
+      const logoTimer = setTimeout(() => setShowLogo(true), 400);
+      const mainTimer = setTimeout(() => {
+        setPhase('main');
+      }, 2000);
 
       return () => {
         clearTimeout(logoTimer);
-        clearTimeout(loaderTimer);
+        clearTimeout(mainTimer);
       };
     }
   }, [phase, rebootCount]);
@@ -551,13 +547,9 @@ export default function Home() {
           cursor: 'crosshair',
         }}
       >
-        {logoSceneMode ? (
-          <Suspense fallback={null}>
-            <LogoScene mode={logoSceneMode} isVisible={entrance.showFooter} />
-          </Suspense>
-        ) : (
-          <AsciiArt ref={asciiRef} color="white" isVisible={entrance.showFooter} configOverrides={vjConfigOverrides} paletteOverride={vjPalette} algorithmOverride={vjAlgorithm} />
-        )}
+        <Suspense fallback={null}>
+          <GridScene isVisible={entrance.showFooter} />
+        </Suspense>
       </div>
 
       {/* Social icons */}
