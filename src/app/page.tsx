@@ -46,8 +46,9 @@ function randomVisualState() {
   return { macros, config, palette, algorithm };
 }
 
-// Lazy-load SFX Panel
+// Lazy-load SFX Panel and 3D Logo Scene
 const SfxPanel = React.lazy(() => import('./components/SfxPanel'));
+const LogoScene = React.lazy(() => import('./components/LogoScene'));
 
 // Isolated spinner component to prevent re-renders on main component
 function Spinner() {
@@ -90,6 +91,9 @@ export default function Home() {
   const emailInputRef = useRef<HTMLInputElement>(null);
   const lastClickPos = useRef({ x: 0, y: 0 });
 
+
+  // 3D Logo Scene mode (null = ASCII art, 'particles'|'text3d'|'portal' = R3F)
+  const [logoSceneMode, setLogoSceneMode] = useState<'particles' | 'text3d' | 'portal' | null>('particles');
 
   // Menu state
   const [showMenuDropdown, setShowMenuDropdown] = useState(false);
@@ -547,7 +551,13 @@ export default function Home() {
           cursor: 'crosshair',
         }}
       >
-        <AsciiArt ref={asciiRef} color="white" isVisible={entrance.showFooter} configOverrides={vjConfigOverrides} paletteOverride={vjPalette} algorithmOverride={vjAlgorithm} />
+        {logoSceneMode ? (
+          <Suspense fallback={null}>
+            <LogoScene mode={logoSceneMode} isVisible={entrance.showFooter} />
+          </Suspense>
+        ) : (
+          <AsciiArt ref={asciiRef} color="white" isVisible={entrance.showFooter} configOverrides={vjConfigOverrides} paletteOverride={vjPalette} algorithmOverride={vjAlgorithm} />
+        )}
       </div>
 
       {/* Social icons */}
