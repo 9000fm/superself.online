@@ -1,115 +1,102 @@
 'use client';
 
-import { useRef, useMemo, useEffect, useCallback } from 'react';
+import { useRef, useMemo, useEffect, useState } from 'react';
 import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { EffectComposer, Bloom } from '@react-three/postprocessing';
 import * as THREE from 'three';
 
 // ─── Perspective Grid Tunnel ───
-// Inspired by the SUPERSELF logo: a rectangular room of converging grid lines
-// with a central vanishing point. White lines on black. Architectural, infinite.
+// The tunnel opening aligns with the page's frame/marquee border.
+// Camera looks straight into the tunnel along -Z.
+// The tunnel's near face (z=0) is sized so its corners match the frame corners
+// as projected by the camera's FOV.
 
 interface GridTunnelProps {
+  /** Half-width of tunnel opening in world units (computed from frame) */
+  halfW: number;
+  /** Half-height of tunnel opening in world units (computed from frame) */
+  halfH: number;
   depth?: number;
   gridSpacing?: number;
 }
 
-function GridTunnel({ depth = 40, gridSpacing = 1.0 }: GridTunnelProps) {
+function GridTunnel({ halfW, halfH, depth = 50, gridSpacing = 1.0 }: GridTunnelProps) {
   const linesRef = useRef<THREE.LineSegments>(null);
 
   const geometry = useMemo(() => {
     const positions: number[] = [];
     const colors: number[] = [];
-
-    const halfW = 4;   // half width of tunnel
-    const halfH = 3;   // half height of tunnel
     const step = gridSpacing;
 
-    // Helper: add a line segment with depth-based opacity via vertex colors
     const addLine = (
       x1: number, y1: number, z1: number,
       x2: number, y2: number, z2: number,
-      brightness1: number, brightness2: number,
+      b1: number, b2: number,
     ) => {
       positions.push(x1, y1, z1, x2, y2, z2);
-      colors.push(brightness1, brightness1, brightness1, brightness2, brightness2, brightness2);
+      colors.push(b1, b1, b1, b2, b2, b2);
     };
 
-    // Depth-based brightness: closer = brighter, further = dimmer
-    const depthBrightness = (z: number) => {
+    // Brightness fades with depth
+    const brightness = (z: number) => {
       const t = Math.abs(z) / depth;
-      return Math.max(0.03, 0.5 * Math.pow(1 - t, 1.5));
+      return Math.max(0.02, 0.4 * Math.pow(1 - t, 1.8));
     };
 
-    // ─── Longitudinal lines (running into the tunnel along Z) ───
+    // ─── Longitudinal lines (into depth) ───
 
-    // Floor grid lines (horizontal, running into depth)
-    for (let x = -halfW; x <= halfW; x += step) {
-      addLine(x, -halfH, 0, x, -halfH, -depth, depthBrightness(0), depthBrightness(depth));
+    // Floor
+    for (let x = -halfW; x <= halfW + 0.01; x += step) {
+      addLine(x, -halfH, 0, x, -halfH, -depth, brightness(0), brightness(depth));
+    }
+    // Ceiling
+    for (let x = -halfW; x <= halfW + 0.01; x += step) {
+      addLine(x, halfH, 0, x, halfH, -depth, brightness(0), brightness(depth));
+    }
+    // Left wall
+    for (let y = -halfH; y <= halfH + 0.01; y += step) {
+      addLine(-halfW, y, 0, -halfW, y, -depth, brightness(0), brightness(depth));
+    }
+    // Right wall
+    for (let y = -halfH; y <= halfH + 0.01; y += step) {
+      addLine(halfW, y, 0, halfW, y, -depth, brightness(0), brightness(depth));
     }
 
-    // Ceiling grid lines
-    for (let x = -halfW; x <= halfW; x += step) {
-      addLine(x, halfH, 0, x, halfH, -depth, depthBrightness(0), depthBrightness(depth));
-    }
-
-    // Left wall grid lines
-    for (let y = -halfH; y <= halfH; y += step) {
-      addLine(-halfW, y, 0, -halfW, y, -depth, depthBrightness(0), depthBrightness(depth));
-    }
-
-    // Right wall grid lines
-    for (let y = -halfH; y <= halfH; y += step) {
-      addLine(halfW, y, 0, halfW, y, -depth, depthBrightness(0), depthBrightness(depth));
-    }
-
-    // ─── Cross lines (across the tunnel at regular depth intervals) ───
+    // ─── Cross lines (at depth intervals) ───
     for (let z = 0; z >= -depth; z -= step) {
-      const b = depthBrightness(Math.abs(z));
-
-      // Floor cross lines
+      const b = brightness(Math.abs(z));
+      // Floor
       addLine(-halfW, -halfH, z, halfW, -halfH, z, b, b);
-
-      // Ceiling cross lines
+      // Ceiling
       addLine(-halfW, halfH, z, halfW, halfH, z, b, b);
-
-      // Left wall cross lines
+      // Left wall
       addLine(-halfW, -halfH, z, -halfW, halfH, z, b, b);
-
-      // Right wall cross lines
+      // Right wall
       addLine(halfW, -halfH, z, halfW, halfH, z, b, b);
     }
-
-    // ─── Corner edges (the 4 edges of the tunnel opening) ───
-    const cornerBright = 0.3;
-    addLine(-halfW, -halfH, 0, -halfW, -halfH, -depth, cornerBright, 0.02);
-    addLine(halfW, -halfH, 0, halfW, -halfH, -depth, cornerBright, 0.02);
-    addLine(-halfW, halfH, 0, -halfW, halfH, -depth, cornerBright, 0.02);
-    addLine(halfW, halfH, 0, halfW, halfH, -depth, cornerBright, 0.02);
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     return geo;
-  }, [depth, gridSpacing]);
+  }, [halfW, halfH, depth, gridSpacing]);
 
-  // Subtle drift animation — cross lines scroll toward viewer
+  // Subtle drift — cross lines slowly scroll toward viewer
   const scrollRef = useRef(0);
   useFrame((_, delta) => {
     if (!linesRef.current) return;
-    scrollRef.current += delta * 0.3;
-    // Subtle z-scroll for living feel
-    linesRef.current.position.z = (scrollRef.current % gridSpacing);
+    scrollRef.current += delta * 0.15;
+    linesRef.current.position.z = scrollRef.current % gridSpacing;
   });
 
   return (
     <lineSegments ref={linesRef} geometry={geometry}>
-      <lineBasicMaterial vertexColors transparent opacity={0.8} />
+      <lineBasicMaterial vertexColors transparent opacity={0.7} />
     </lineSegments>
   );
 }
 
-// ─── Mouse-driven camera tilt ───
+// ─── Camera controller: very subtle mouse parallax ───
 function CameraController() {
   const { camera } = useThree();
   const mouseRef = useRef(new THREE.Vector2(0, 0));
@@ -127,29 +114,76 @@ function CameraController() {
   }, []);
 
   useFrame(() => {
-    // Smooth lerp toward target
-    mouseRef.current.x += (targetRef.current.x - mouseRef.current.x) * 0.03;
-    mouseRef.current.y += (targetRef.current.y - mouseRef.current.y) * 0.03;
-
-    // Subtle rotation — like tilting your head
-    camera.rotation.y = mouseRef.current.x * 0.08;
-    camera.rotation.x = mouseRef.current.y * 0.05;
+    mouseRef.current.x += (targetRef.current.x - mouseRef.current.x) * 0.02;
+    mouseRef.current.y += (targetRef.current.y - mouseRef.current.y) * 0.02;
+    // Very gentle tilt — just enough to feel alive
+    camera.rotation.y = mouseRef.current.x * 0.03;
+    camera.rotation.x = mouseRef.current.y * 0.02;
   });
 
   return null;
 }
 
-// ─── Post-processing ───
-function Effects() {
+// ─── Compute tunnel dimensions to match the frame ───
+// Given camera FOV + distance, compute world-space size that maps to
+// the frame rectangle on screen.
+function useTunnelDimensions(fov: number, cameraZ: number) {
+  const [dims, setDims] = useState({ halfW: 4, halfH: 3 });
+
+  useEffect(() => {
+    const compute = () => {
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+
+      // Parse the frame inset: max(clamp(30px, 5vw, 60px), env(...))
+      // Approximate: clamp(30, vw*0.05, 60)
+      const insetPx = Math.max(30, Math.min(vw * 0.05, 60));
+
+      // Frame rectangle in pixels (from edge)
+      const frameW = vw - insetPx * 2;
+      const frameH = vh - insetPx * 2;
+
+      // Frame rectangle as fraction of viewport
+      const fracW = frameW / vw;
+      const fracH = frameH / vh;
+
+      // Total visible height in world units at z=0
+      const fovRad = (fov * Math.PI) / 180;
+      const totalH = 2 * cameraZ * Math.tan(fovRad / 2);
+      const totalW = totalH * (vw / vh);
+
+      // Tunnel opening = frame fraction of total visible area
+      setDims({
+        halfW: (totalW * fracW) / 2,
+        halfH: (totalH * fracH) / 2,
+      });
+    };
+
+    compute();
+    window.addEventListener('resize', compute);
+    return () => window.removeEventListener('resize', compute);
+  }, [fov, cameraZ]);
+
+  return dims;
+}
+
+// ─── Inner scene (needs useThree context) ───
+function Scene({ fov, cameraZ }: { fov: number; cameraZ: number }) {
+  const { halfW, halfH } = useTunnelDimensions(fov, cameraZ);
+
   return (
-    <EffectComposer>
-      <Bloom
-        intensity={0.4}
-        luminanceThreshold={0.3}
-        luminanceSmoothing={0.9}
-        mipmapBlur
-      />
-    </EffectComposer>
+    <>
+      <GridTunnel halfW={halfW} halfH={halfH} />
+      <CameraController />
+      <EffectComposer>
+        <Bloom
+          intensity={0.3}
+          luminanceThreshold={0.2}
+          luminanceSmoothing={0.9}
+          mipmapBlur
+        />
+      </EffectComposer>
+    </>
   );
 }
 
@@ -157,6 +191,9 @@ function Effects() {
 interface GridSceneProps {
   isVisible?: boolean;
 }
+
+const CAM_FOV = 65;
+const CAM_Z = 2;
 
 export default function GridScene({ isVisible = true }: GridSceneProps) {
   return (
@@ -169,14 +206,12 @@ export default function GridScene({ isVisible = true }: GridSceneProps) {
       pointerEvents: 'none',
     }}>
       <Canvas
-        camera={{ position: [0, 0, 2], fov: 65, near: 0.1, far: 100 }}
+        camera={{ position: [0, 0, CAM_Z], fov: CAM_FOV, near: 0.1, far: 100 }}
         dpr={[1, 2]}
         gl={{ antialias: true, alpha: true }}
         style={{ background: 'transparent' }}
       >
-        <GridTunnel />
-        <CameraController />
-        <Effects />
+        <Scene fov={CAM_FOV} cameraZ={CAM_Z} />
       </Canvas>
     </div>
   );
