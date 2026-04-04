@@ -5,30 +5,26 @@ import { Canvas, useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 
 // ─── Perspective Grid Tunnel ───
-// The tunnel opening aligns with the page's frame/marquee border.
-// Camera looks straight into the tunnel along -Z.
-// The tunnel's near face (z=0) is sized so its corners match the frame corners
-// as projected by the camera's FOV.
+// Rectangular opening (matching frame) tapers to a perfect SQUARE at the center.
+// Like the SUPERSELF logo: not infinite convergence, but a visible square end.
 
 interface GridTunnelProps {
-  halfW: number;
-  halfH: number;
-  depth?: number;
-  /** Number of grid divisions on each wall edge (same count everywhere) */
-  divisions?: number;
+  halfW: number;     // half-width of outer opening
+  halfH: number;     // half-height of outer opening
+  divisions?: number; // grid lines per wall edge
 }
 
-function GridTunnel({ halfW, halfH, depth = 50, divisions = 8 }: GridTunnelProps) {
+function GridTunnel({ halfW, halfH, divisions = 8 }: GridTunnelProps) {
   const linesRef = useRef<THREE.LineSegments>(null);
-
-  // Step sizes: divide each wall by the SAME number of divisions
-  const stepW = (halfW * 2) / divisions;  // horizontal step (floor/ceiling)
-  const stepH = (halfH * 2) / divisions;  // vertical step (left/right walls)
-  const stepZ = depth / (divisions * 2);  // depth step (cross lines)
 
   const geometry = useMemo(() => {
     const positions: number[] = [];
     const colors: number[] = [];
+
+    // The far end is a perfect square, centered, sized to fit inside the frame
+    const squareHalf = Math.min(halfW, halfH) * 0.15;  // small square at center
+    const depth = 12; // how far back the square sits
+    const layers = divisions * 3; // number of depth slices for smooth taper
 
     const addLine = (
       x1: number, y1: number, z1: number,
@@ -39,66 +35,82 @@ function GridTunnel({ halfW, halfH, depth = 50, divisions = 8 }: GridTunnelProps
       colors.push(b1, b1, b1, b2, b2, b2);
     };
 
-    const brightness = (z: number) => {
-      const t = Math.abs(z) / depth;
-      return Math.max(0.02, 0.4 * Math.pow(1 - t, 1.8));
+    // Brightness: brighter near camera, dimmer at the square
+    const brightness = (t: number) => {
+      return Math.max(0.04, 0.35 * Math.pow(1 - t, 1.2));
     };
 
-    const b0 = brightness(0);
-    const bEnd = brightness(depth);
+    // Interpolate between outer rect and inner square at depth t (0=near, 1=far)
+    const lerpRect = (t: number) => {
+      const w = halfW + (squareHalf - halfW) * t;
+      const h = halfH + (squareHalf - halfH) * t;
+      const z = -depth * t;
+      return { w, h, z };
+    };
 
-    // ─── Longitudinal lines (into depth) — same count on each wall ───
+    // ─── Longitudinal lines: connect grid points from outer to inner ───
 
-    // Floor + Ceiling: divisions+1 lines across width
+    // Top & bottom edges: divisions+1 lines across width
     for (let i = 0; i <= divisions; i++) {
-      const x = -halfW + i * stepW;
-      addLine(x, -halfH, 0, x, -halfH, -depth, b0, bEnd);  // floor
-      addLine(x, halfH, 0, x, halfH, -depth, b0, bEnd);     // ceiling
+      const frac = i / divisions; // 0 to 1 across the edge
+
+      // Outer position (near face)
+      const outerX = -halfW + frac * (halfW * 2);
+      // Inner position (far face) — same fraction but on the square
+      const innerX = -squareHalf + frac * (squareHalf * 2);
+
+      const b0 = brightness(0);
+      const b1 = brightness(1);
+
+      // Bottom edge
+      addLine(outerX, -halfH, 0, innerX, -squareHalf, -depth, b0, b1);
+      // Top edge
+      addLine(outerX, halfH, 0, innerX, squareHalf, -depth, b0, b1);
     }
 
-    // Left + Right walls: divisions+1 lines across height
+    // Left & right edges: divisions+1 lines across height
     for (let i = 0; i <= divisions; i++) {
-      const y = -halfH + i * stepH;
-      addLine(-halfW, y, 0, -halfW, y, -depth, b0, bEnd);   // left
-      addLine(halfW, y, 0, halfW, y, -depth, b0, bEnd);     // right
+      const frac = i / divisions;
+
+      const outerY = -halfH + frac * (halfH * 2);
+      const innerY = -squareHalf + frac * (squareHalf * 2);
+
+      const b0 = brightness(0);
+      const b1 = brightness(1);
+
+      // Left edge
+      addLine(-halfW, outerY, 0, -squareHalf, innerY, -depth, b0, b1);
+      // Right edge
+      addLine(halfW, outerY, 0, squareHalf, innerY, -depth, b0, b1);
     }
 
-    // ─── Cross lines (at regular depth intervals) ───
-    const depthDivisions = divisions * 2;
-    for (let i = 0; i <= depthDivisions; i++) {
-      const z = -(i * stepZ);
-      const b = brightness(Math.abs(z));
-      addLine(-halfW, -halfH, z, halfW, -halfH, z, b, b);   // floor
-      addLine(-halfW, halfH, z, halfW, halfH, z, b, b);     // ceiling
-      addLine(-halfW, -halfH, z, -halfW, halfH, z, b, b);   // left
-      addLine(halfW, -halfH, z, halfW, halfH, z, b, b);     // right
+    // ─── Cross rings: rectangles at each depth layer ───
+    for (let i = 0; i <= layers; i++) {
+      const t = i / layers;
+      const { w, h, z } = lerpRect(t);
+      const b = brightness(t);
+
+      // Four edges of the rectangle at this depth
+      addLine(-w, -h, z, w, -h, z, b, b);   // bottom
+      addLine(-w, h, z, w, h, z, b, b);     // top
+      addLine(-w, -h, z, -w, h, z, b, b);   // left
+      addLine(w, -h, z, w, h, z, b, b);     // right
     }
 
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
     return geo;
-  }, [halfW, halfH, depth, divisions, stepW, stepH, stepZ]);
-
-  // Subtle drift — grid scrolls toward viewer
-  const scrollRef = useRef(0);
-  useFrame((_, delta) => {
-    if (!linesRef.current) return;
-    scrollRef.current += delta * 0.15;
-    linesRef.current.position.z = scrollRef.current % stepZ;
-  });
+  }, [halfW, halfH, divisions]);
 
   return (
     <lineSegments ref={linesRef} geometry={geometry}>
-      <lineBasicMaterial vertexColors transparent opacity={0.7} />
+      <lineBasicMaterial vertexColors transparent opacity={0.6} />
     </lineSegments>
   );
 }
 
-
 // ─── Compute tunnel dimensions to match the frame ───
-// Given camera FOV + distance, compute world-space size that maps to
-// the frame rectangle on screen.
 function useTunnelDimensions(fov: number, cameraZ: number) {
   const [dims, setDims] = useState({ halfW: 4, halfH: 3 });
 
@@ -107,24 +119,19 @@ function useTunnelDimensions(fov: number, cameraZ: number) {
       const vw = window.innerWidth;
       const vh = window.innerHeight;
 
-      // Parse the frame inset: max(clamp(30px, 5vw, 60px), env(...))
-      // Approximate: clamp(30, vw*0.05, 60)
+      // Frame inset: clamp(30px, 5vw, 60px)
       const insetPx = Math.max(30, Math.min(vw * 0.05, 60));
 
-      // Frame rectangle in pixels (from edge)
       const frameW = vw - insetPx * 2;
       const frameH = vh - insetPx * 2;
 
-      // Frame rectangle as fraction of viewport
       const fracW = frameW / vw;
       const fracH = frameH / vh;
 
-      // Total visible height in world units at z=0
       const fovRad = (fov * Math.PI) / 180;
       const totalH = 2 * cameraZ * Math.tan(fovRad / 2);
       const totalW = totalH * (vw / vh);
 
-      // Tunnel opening = frame fraction of total visible area
       setDims({
         halfW: (totalW * fracW) / 2,
         halfH: (totalH * fracH) / 2,
@@ -139,14 +146,12 @@ function useTunnelDimensions(fov: number, cameraZ: number) {
   return dims;
 }
 
-// ─── Inner scene (needs useThree context) ───
+// ─── Inner scene ───
 function Scene({ fov, cameraZ }: { fov: number; cameraZ: number }) {
   const { halfW, halfH } = useTunnelDimensions(fov, cameraZ);
 
   return (
-    <>
-      <GridTunnel halfW={halfW} halfH={halfH} />
-    </>
+    <GridTunnel halfW={halfW} halfH={halfH} />
   );
 }
 
