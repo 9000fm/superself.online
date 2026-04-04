@@ -103,6 +103,15 @@ function GridTunnel({ halfW, halfH, divisions = 8 }: GridTunnelProps) {
     return geo;
   }, [halfW, halfH, divisions]);
 
+  // Subtle drift animation — cross rings scroll toward viewer
+  const scrollRef = useRef(0);
+  const depthStep = 12 / (divisions * 3); // matches the cross ring spacing
+  useFrame((_, delta) => {
+    if (!linesRef.current) return;
+    scrollRef.current += delta * 0.15;
+    linesRef.current.position.z = scrollRef.current % depthStep;
+  });
+
   return (
     <lineSegments ref={linesRef} geometry={geometry}>
       <lineBasicMaterial vertexColors transparent opacity={0.6} />

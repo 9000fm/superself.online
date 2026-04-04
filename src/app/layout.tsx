@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     description: "Electronic music label & creative brand. Lima, Peru.",
   },
   icons: {
-    icon: "/favicon.ico",
+    icon: "/icon.svg",
   },
 };
 
