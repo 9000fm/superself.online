@@ -5,10 +5,12 @@ interface UseDraggableReturn {
   welcomePos: Position;
   aboutPos: Position;
   shopPos: Position;
+  mixesPos: Position;
   isDragging: string | null;
   setWelcomePos: (pos: Position) => void;
   setAboutPos: (pos: Position) => void;
   setShopPos: (pos: Position) => void;
+  setMixesPos: (pos: Position) => void;
   handleDragStart: (e: React.MouseEvent | React.TouchEvent, popupId: string) => void;
   resetPosition: (popupId: string) => void;
 }
@@ -17,6 +19,7 @@ export function useDraggable(): UseDraggableReturn {
   const [welcomePos, setWelcomePos] = useState<Position>({ x: 0, y: 0 });
   const [aboutPos, setAboutPos] = useState<Position>({ x: 0, y: 0 });
   const [shopPos, setShopPos] = useState<Position>({ x: 0, y: 0 });
+  const [mixesPos, setMixesPos] = useState<Position>({ x: 0, y: 0 });
   const [isDragging, setIsDragging] = useState<string | null>(null);
 
   const resetPosition = useCallback((popupId: string) => {
@@ -26,6 +29,8 @@ export function useDraggable(): UseDraggableReturn {
       setAboutPos({ x: 0, y: 0 });
     } else if (popupId === 'shop') {
       setShopPos({ x: 0, y: 0 });
+    } else if (popupId === 'mixes') {
+      setMixesPos({ x: 0, y: 0 });
     }
   }, []);
 
@@ -41,7 +46,7 @@ export function useDraggable(): UseDraggableReturn {
 
         // If popup is centered (position is 0,0), convert to absolute position first
         const currentPos =
-          popupId === 'welcome' ? welcomePos : popupId === 'shop' ? shopPos : aboutPos;
+          popupId === 'welcome' ? welcomePos : popupId === 'shop' ? shopPos : popupId === 'mixes' ? mixesPos : aboutPos;
         if (currentPos.x === 0 && currentPos.y === 0) {
           const initialPos = { x: rect.left, y: rect.top };
           if (popupId === 'welcome') {
@@ -50,6 +55,8 @@ export function useDraggable(): UseDraggableReturn {
             setAboutPos(initialPos);
           } else if (popupId === 'shop') {
             setShopPos(initialPos);
+          } else if (popupId === 'mixes') {
+            setMixesPos(initialPos);
           }
         }
 
@@ -71,6 +78,8 @@ export function useDraggable(): UseDraggableReturn {
             setAboutPos(newPos);
           } else if (popupId === 'shop') {
             setShopPos(newPos);
+          } else if (popupId === 'mixes') {
+            setMixesPos(newPos);
           }
         };
 
@@ -92,7 +101,7 @@ export function useDraggable(): UseDraggableReturn {
         setIsDragging(popupId);
       }
     },
-    [welcomePos, aboutPos, shopPos]
+    [welcomePos, aboutPos, shopPos, mixesPos]
   );
 
   // Clamp positions on viewport resize so panels stay visible
@@ -109,6 +118,7 @@ export function useDraggable(): UseDraggableReturn {
       fix(welcomePos, setWelcomePos);
       fix(aboutPos, setAboutPos);
       fix(shopPos, setShopPos);
+      fix(mixesPos, setMixesPos);
     };
     window.addEventListener('resize', clamp);
     window.addEventListener('orientationchange', clamp);
@@ -116,16 +126,18 @@ export function useDraggable(): UseDraggableReturn {
       window.removeEventListener('resize', clamp);
       window.removeEventListener('orientationchange', clamp);
     };
-  }, [welcomePos, aboutPos, shopPos]);
+  }, [welcomePos, aboutPos, shopPos, mixesPos]);
 
   return {
     welcomePos,
     aboutPos,
     shopPos,
+    mixesPos,
     isDragging,
     setWelcomePos,
     setAboutPos,
     setShopPos,
+    setMixesPos,
     handleDragStart,
     resetPosition,
   };

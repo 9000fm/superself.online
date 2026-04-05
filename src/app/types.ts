@@ -5,10 +5,10 @@ export type Phase = 'boot' | 'loading' | 'pause' | 'confirm' | 'shutdown' | 'off
 export type Language = 'ES' | 'EN' | 'JP';
 
 // Active section in main view
-export type ActiveSection = 'about' | 'shop' | 'sfx' | null;
+export type ActiveSection = 'about' | 'shop' | 'mixes' | null;
 
 // Active window for z-index management
-export type ActiveWindow = 'welcome' | 'about' | 'shop' | null;
+export type ActiveWindow = 'welcome' | 'about' | 'shop' | 'mixes' | null;
 
 // Position type for draggable elements
 export type Position = { x: number; y: number };

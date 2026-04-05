@@ -10,7 +10,7 @@ interface Win95PopupProps {
   onClose: () => void;
   position: { x: number; y: number };
   width?: string;
-  windowId?: 'welcome' | 'about' | 'shop';
+  windowId?: 'welcome' | 'about' | 'shop' | 'mixes';
   activeWindow: ActiveWindow;
   onActivate: () => void;
   onDragStart: (e: React.MouseEvent | React.TouchEvent) => void;

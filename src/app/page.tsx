@@ -32,6 +32,7 @@ import {
   ShutdownScreen,
   Shop,
 } from './components';
+import Mixes from './components/Mixes';
 
 // VJ imports
 import { randomizeMacros, computeConfigFromMacros, ALGORITHM_NAMES } from './vj';
@@ -45,9 +46,6 @@ function randomVisualState() {
   const algorithm = ALGORITHM_NAMES[Math.floor(Math.random() * ALGORITHM_NAMES.length)];
   return { macros, config, palette, algorithm };
 }
-
-// Lazy-load SFX Panel
-const SfxPanel = React.lazy(() => import('./components/SfxPanel'));
 
 // Grid scene — imported directly (not lazy) so WebGL initializes during boot
 import GridScene from './components/GridScene';
@@ -90,6 +88,7 @@ export default function Home() {
   const [subscribeEmail, setSubscribeEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [showSubscribedPopup, setShowSubscribedPopup] = useState(false);
+  const [pressedBurger, setPressedBurger] = useState(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
   const lastClickPos = useRef({ x: 0, y: 0 });
 
@@ -104,7 +103,7 @@ export default function Home() {
 
   // VJ Panel state — start with random visuals
   const [initialVisuals] = useState(randomVisualState);
-  const [showSfxPanel, setShowSfxPanel] = useState(false);
+
   const [vjConfigOverrides, setVjConfigOverrides] = useState<Partial<import('./AsciiArt').Config> | undefined>(() => initialVisuals.config);
   const [vjPalette, setVjPalette] = useState<string | undefined>(() => initialVisuals.palette);
   const [vjAlgorithm, setVjAlgorithm] = useState<string | undefined>(() => initialVisuals.algorithm);
@@ -202,23 +201,31 @@ export default function Home() {
     };
   }, []);
 
+  // Show "1 new message" notification after entering main phase
+  useEffect(() => {
+    if (phase === 'main' && !showWelcomePopup && !showNotification) {
+      const timer = setTimeout(() => {
+        setShowNotification(true);
+      }, 12000);
+      return () => clearTimeout(timer);
+    }
+  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Boot sequence — logo only, 2 seconds, then straight to main
   useEffect(() => {
     if (phase === 'boot') {
       const logoTimer = setTimeout(() => setShowLogo(true), 400);
-      const mainTimer = setTimeout(() => {
-        setPhase('main');
-      }, 2000);
+      const loaderTimer = setTimeout(() => setShowLoader(true), 1200);
 
       return () => {
         clearTimeout(logoTimer);
-        clearTimeout(mainTimer);
+        clearTimeout(loaderTimer);
       };
     }
   }, [phase, rebootCount]);
 
   const handleLoadingComplete = useCallback(() => {
-    setPhase('confirm');
+    setPhase('main');
   }, []);
 
   // Skip handler
@@ -319,15 +326,10 @@ export default function Home() {
         setShowWelcomePopup(false);
         setActiveSection(null);
         setShowMenuDropdown(false);
-        setShowSfxPanel(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, []);
-
-  const handleVJToggle = useCallback(() => {
-    setShowSfxPanel(prev => !prev);
   }, []);
 
   const handleCapture = useCallback(async () => {
@@ -402,7 +404,7 @@ export default function Home() {
           pointerEvents: 'none',
           border: '1px solid rgba(255,255,255,0.4)',
           opacity: entrance.showFrame ? 1 : 0,
-          transition: 'opacity 0.6s ease-in-out',
+          transition: 'opacity 1.5s ease-in-out',
         }}
       >
         <GridScene />
@@ -418,7 +420,7 @@ export default function Home() {
           flexDirection: 'column',
           alignItems: 'center',
           justifyContent: 'center',
-          width: '31vmin',
+          width: 'max(31vmin, min(45vw, 250px))',
           display: phase === 'boot' || phase === 'loading' ? 'flex' : 'none',
         }}
       >
@@ -495,13 +497,7 @@ export default function Home() {
         }}
         onClick={handleTitleClick}
       >
-        <span
-          style={{ opacity: entrance.showTitlePrompt ? 1 : 0, display: 'inline-block', width: '1ch', textAlign: 'center' }}
-        >&gt;</span>{' '}
-        {entrance.typedTitle}
-        <span className={entrance.showTitleCursor ? 'blink' : ''} style={{ opacity: entrance.showTitleCursor ? 1 : 0 }}>
-          _
-        </span>
+        <span className="blink-slow" style={{ opacity: 0.5, marginRight: '0.15em' }}>&gt;</span>{entrance.typedTitle}
       </div>
 
       {/* Center - ASCII Art */}
@@ -546,7 +542,7 @@ export default function Home() {
           bottom: frameInsetBottom,
           display: showMainContent ? 'block' : 'none',
           opacity: entrance.showFooter ? 1 : 0,
-          transition: 'opacity 1.5s ease-in-out',
+          transition: 'opacity 2s ease-in-out',
           overflow: 'hidden',
           zIndex: 1,
           cursor: 'crosshair',
@@ -565,7 +561,8 @@ export default function Home() {
           flexDirection: 'column',
           gap: '12px',
           opacity: entrance.showFooter ? 1 : 0,
-          transition: 'opacity 0.6s ease-in-out',
+          transition: 'opacity 0.8s ease-in-out',
+          transitionDelay: entrance.showFooter ? '3.5s' : '0s',
           zIndex: 10,
         }}
       >
@@ -602,6 +599,11 @@ export default function Home() {
       >
         <button
           onClick={() => setShowMenuDropdown(!showMenuDropdown)}
+          onMouseDown={() => setPressedBurger(true)}
+          onMouseUp={() => setPressedBurger(false)}
+          onMouseLeave={() => setPressedBurger(false)}
+          onTouchStart={() => setPressedBurger(true)}
+          onTouchEnd={() => setPressedBurger(false)}
           aria-label="Menu"
           aria-expanded={showMenuDropdown}
           style={{
@@ -614,9 +616,9 @@ export default function Home() {
             height: 'clamp(46px, 10vw, 54px)',
             width: 'clamp(46px, 10vw, 54px)',
             border: 'none',
-            boxShadow: showMenuDropdown
-              ? 'inset 1px 1px 0 var(--win95-shadow, #0a0a0a), inset -1px -1px 0 var(--win95-highlight, #dfdfdf), inset 2px 2px 0 var(--win95-dark, #808080), inset -2px -2px 0 var(--win95-highlight, #dfdfdf), inset 3px 3px 0 var(--win95-dark, #808080)'
-              : 'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf), inset -2px -2px 0 var(--win95-dark, #808080), inset 2px 2px 0 var(--win95-highlight, #dfdfdf), inset -3px -3px 0 var(--win95-dark, #808080)',
+            boxShadow: showMenuDropdown || pressedBurger
+              ? 'inset 1px 1px 0 var(--win95-shadow, #0a0a0a), inset -1px -1px 0 var(--win95-highlight, #dfdfdf)'
+              : 'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf)',
           }}
         >
           {showMenuDropdown ? (
@@ -671,21 +673,21 @@ export default function Home() {
               </span>
             </button>
             <button
-              className={showSfxPanel ? '' : 'nav-cli'}
-              onClick={() => { handleVJToggle(); }}
+              className={activeSection === 'mixes' ? '' : 'nav-cli'}
+              onClick={() => setActiveSection(activeSection === 'mixes' ? null : 'mixes')}
               style={{
                 fontFamily: winFont,
                 fontSize: 'clamp(1.1rem, 4vw, 1.4rem)',
-                color: showSfxPanel ? 'var(--nav-hover-fg, #000080)' : 'white',
-                backgroundColor: showSfxPanel ? 'var(--nav-hover-bg, #c0c0c0)' : 'transparent',
+                color: activeSection === 'mixes' ? 'var(--nav-hover-fg, #000080)' : 'white',
+                backgroundColor: activeSection === 'mixes' ? 'var(--nav-hover-bg, #c0c0c0)' : 'transparent',
                 cursor: 'pointer',
                 padding: '4px 8px',
                 border: 'none',
               }}
-              aria-label={t.sfx}
+              aria-label={t.mixes}
             >
-              {scrambled.sfx || t.sfx}
-              <span className="nav-cursor" style={{ color: showSfxPanel ? 'var(--nav-hover-fg, #000080)' : undefined }}>
+              {scrambled.mixes || t.mixes}
+              <span className="nav-cursor" style={{ color: activeSection === 'mixes' ? 'var(--nav-hover-fg, #000080)' : undefined }}>
                 _
               </span>
             </button>
@@ -875,8 +877,8 @@ export default function Home() {
               fontFamily: winFont,
               fontSize: 'clamp(0.85rem, 2.5vw, 1rem)',
               color: 'var(--win95-text, #000)',
-              width: '440px',
-              maxWidth: '85vw',
+              width: '360px',
+              maxWidth: '75vw',
               lineHeight: '1.8',
               textAlign: 'center',
               position: draggable.aboutPos.x || draggable.aboutPos.y ? 'fixed' : 'relative',
@@ -962,15 +964,28 @@ export default function Home() {
         />
       )}
 
+      {/* Mixes Panel */}
+      {activeSection === 'mixes' && (
+        <Mixes
+          language={language}
+          onClose={() => { setActiveSection(null); draggable.resetPosition('mixes'); }}
+          position={draggable.mixesPos}
+          isActive={activeWindow === 'mixes'}
+          onActivate={() => setActiveWindow('mixes')}
+          onDragStart={(e) => draggable.handleDragStart(e, 'mixes')}
+          isDragging={draggable.isDragging === 'mixes'}
+        />
+      )}
+
       {/* Email copied toast */}
       {showEmailCopied && (
         <div
           role="alert"
           style={{
             position: 'fixed',
-            top: emailToastPos.y - 40,
-            left: emailToastPos.x,
-            transform: 'translateX(-50%)',
+            top: emailToastPos.y - 50,
+            left: emailToastPos.x - 60,
+            transform: 'none',
             fontFamily: winFont,
             fontSize: 'clamp(0.9rem, 2vw, 1.1rem)',
             color: 'var(--accent, #0000FF)',
@@ -1041,7 +1056,8 @@ export default function Home() {
           fontFamily: winFont,
           fontSize: 'clamp(1rem, 2.5vw, 1.15rem)',
           opacity: (phase === 'confirm' && confirmScreen.confirmLangVisible) || (phase === 'main' && entrance.showFooter) ? 1 : 0,
-          transition: 'opacity 0.6s ease-in-out',
+          transition: 'opacity 0.8s ease-in-out',
+          transitionDelay: phase === 'main' && entrance.showFooter ? '4.0s' : '0s',
           zIndex: 50,
           pointerEvents: 'auto',
         }}
@@ -1117,7 +1133,8 @@ export default function Home() {
           transform: 'translateX(-50%) translateY(50%)',
           display: showMainContent ? 'block' : 'none',
           opacity: entrance.showFooter ? 1 : 0,
-          transition: 'opacity 0.6s ease-in-out',
+          transition: 'opacity 0.8s ease-in-out',
+          transitionDelay: entrance.showFooter ? '4.5s' : '0s',
         }}
       >
         <span style={{ fontFamily: winFont, fontSize: 'clamp(0.6rem, 1.2vw, 0.75rem)', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>
@@ -1148,21 +1165,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* SFX Panel */}
-      {showSfxPanel && (
-        <Suspense fallback={null}>
-          <SfxPanel
-            initialMacros={initialVisuals.macros}
-            initialPalette={initialVisuals.palette}
-            initialAlgorithm={initialVisuals.algorithm}
-            onConfigChange={setVjConfigOverrides}
-            onPaletteChange={setVjPalette}
-            onAlgorithmChange={setVjAlgorithm}
-            onClose={() => setShowSfxPanel(false)}
-            onCapture={handleCapture}
-          />
-        </Suspense>
-      )}
+
 
       {/* Landscape warning */}
       {showLandscapeWarning && (

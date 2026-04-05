@@ -11,7 +11,7 @@ interface UseLanguageScrambleProps {
 interface ScrambledTexts {
   about: string;
   shop: string;
-  sfx: string;
+  mixes: string;
   message: string;
   copyright: string;
   welcomeMsg: string;
@@ -31,7 +31,7 @@ interface UseLanguageScrambleReturn {
 const emptyScrambled: ScrambledTexts = {
   about: '',
   shop: '',
-  sfx: '',
+  mixes: '',
   message: '',
   copyright: '',
   welcomeMsg: '',
@@ -72,7 +72,7 @@ export function useLanguageScramble({
       const newTexts = {
         about: t.about,
         shop: t.shop,
-        sfx: t.sfx,
+        mixes: t.mixes,
         message: t.message,
         copyright: t.allRightsReserved,
         welcomeMsg: t.welcomeMessage,
@@ -119,7 +119,7 @@ export function useLanguageScramble({
         setScrambled({
           about: scrambleText(newTexts.about, charLockFrames.about),
           shop: scrambleText(newTexts.shop, charLockFrames.shop),
-          sfx: scrambleText(newTexts.sfx, charLockFrames.sfx),
+          mixes: scrambleText(newTexts.mixes, charLockFrames.mixes),
           message: scrambleText(newTexts.message, charLockFrames.message),
           copyright: scrambleText(newTexts.copyright, charLockFrames.copyright),
           welcomeMsg: scrambleText(newTexts.welcomeMsg, charLockFrames.welcomeMsg),

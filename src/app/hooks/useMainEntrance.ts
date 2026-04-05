@@ -66,11 +66,11 @@ export function useMainEntrance({
       // Is this a replay (title click) or the initial entrance?
       const isReplay = showFrame && burgerVisible;
 
-      // Timings depend on skip mode
-      // Footer/burger appear while title is still scrambling
+      // Timings: cinematic — each element gets its moment
+      // frame → grid → title → burger → peripherals (CSS delay) → sphere (GridScene internal)
       const timings = skipMode
-        ? { frame: 300, title: 800, footer: 1500, burger: 2000, popup: 8000 }
-        : { frame: 500, title: 900, footer: 2200, burger: 3200, popup: 8000 + Math.random() * 2000 };
+        ? { frame: 200, title: 600, footer: 1200, burger: 1800, popup: 8000 }
+        : { frame: 500, title: 2500, footer: 1000, burger: 4500, popup: 10000 + Math.random() * 2000 };
 
       // Step 1: Show frame first (skip if replay)
       const frameTimer = isReplay ? null : setTimeout(() => {

@@ -28,7 +28,8 @@ export type TranslationKeys = {
   subscribedMessage: string;
   confirm: string;
   cancel: string;
-  sfx: string;
+  mixes: string;
+  mixesTitle: string;
   skip: string;
   warningTitle: string;
   warningMessage: string;
@@ -51,7 +52,7 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: 'Se encontro una invitacion pendiente.',
     ok: 'Abrir',
     aboutTitle: 'acerca.txt',
-    aboutText: '(2023) es un sello y colectivo de música electrónica. Compartimos mixes, lanzamientos y recomendaciones selectas. Nos mueve conectar artistas con oídos curiosos y darle espacio a sonidos que merecen ser escuchados. Sonido primero.',
+    aboutText: '(2023) es un sello y colectivo de música electrónica. Compartimos mixes, lanzamientos y recomendaciones selectas.',
     close: 'Cerrar',
     shopTitle: 'tienda.exe',
     shopMessage: 'Tienda proximamente...',
@@ -67,7 +68,8 @@ export const translations: Record<Language, TranslationKeys> = {
     subscribedMessage: 'Gracias por suscribirte',
     confirm: 'Enviar',
     cancel: 'Cancelar',
-    sfx: '> sfx',
+    mixes: '> sesiones',
+    mixesTitle: 'sesiones.exe',
     skip: 'saltar',
     warningTitle: 'Mensaje del sistema',
     warningMessage: 'El tamano de pantalla puede afectar la experiencia.\nGira el dispositivo o redimensiona la ventana.',
@@ -88,7 +90,7 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: 'Pending invitation found.',
     ok: 'Open',
     aboutTitle: 'about.txt',
-    aboutText: '(2023) is an electronic music label and collective. We share mixes, releases and curated recommendations. We connect artists with curious ears and make space for sounds that deserve to be heard. Sound first.',
+    aboutText: '(2023) is an electronic music label and collective. We share mixes, releases and curated recommendations.',
     close: 'Close',
     shopTitle: 'shop.exe',
     shopMessage: 'Shop coming soon...',
@@ -104,7 +106,8 @@ export const translations: Record<Language, TranslationKeys> = {
     subscribedMessage: 'Thanks for subscribing',
     confirm: 'Send',
     cancel: 'Cancel',
-    sfx: '> sfx',
+    mixes: '> mixes',
+    mixesTitle: 'mixes.exe',
     skip: 'skip',
     warningTitle: 'System message',
     warningMessage: 'Screen size may affect the experience.\nRotate device or resize window.',
@@ -125,7 +128,7 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: '保留中の招待があります。',
     ok: '開く',
     aboutTitle: '概要.txt',
-    aboutText: '(2023) は電子音楽レーベル＆コレクティブ。ミックス、リリース、厳選レコメンドを共有。アーティストと好奇心ある耳を繋ぎ、届くべき音に居場所を作る。サウンド優先。',
+    aboutText: '(2023) は電子音楽レーベル＆コレクティブ。ミックス、リリース、厳選レコメンドを共有。',
     close: '閉じる',
     shopTitle: '店舗.exe',
     shopMessage: 'ショップは近日公開...',
@@ -141,7 +144,8 @@ export const translations: Record<Language, TranslationKeys> = {
     subscribedMessage: '登録ありがとう',
     confirm: '送信',
     cancel: 'キャンセル',
-    sfx: '> sfx',
+    mixes: '> セッション',
+    mixesTitle: 'セッション.exe',
     skip: 'スキップ',
     warningTitle: 'システムメッセージ',
     warningMessage: '画面サイズが体験に影響する可能性があります。\nデバイスを回転またはリサイズ。',
