@@ -2,18 +2,47 @@
 
 import { useRef, useEffect } from 'react';
 
-// ─── 2D Perspective Grid + Floating Wireframe Sphere ───
+// ─── Particle type ───
+interface Particle {
+  wall: number;    // 0=top, 1=bottom, 2=left, 3=right
+  pos: number;     // 0-1 position across the wall
+  depth: number;   // 0=center (spawn), 1=outer edge (die)
+  speed: number;   // depth units per second
+  trail: number[]; // previous depth values for trail
+  brightness: number; // 0.3-1
+}
+
+// ─── 2D Perspective Grid + Wall Particles ───
 
 export default function GridScene() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const scrollRef = useRef(0);
-  const sphereAngle = useRef(0);
   const startTime = useRef(0);
+  const particles = useRef<Particle[]>([]);
+  const lastTime = useRef(0);
 
   useEffect(() => {
     let running = true;
     startTime.current = performance.now();
+    lastTime.current = performance.now();
+
+    // Spawn initial particles
+    const spawnParticle = (): Particle => ({
+      wall: Math.floor(Math.random() * 4),
+      pos: Math.random(),
+      depth: 0.85 + Math.random() * 0.15,    // start at outer edges
+      speed: 0.03 + Math.random() * 0.06,
+      trail: [],
+      brightness: 0.3 + Math.random() * 0.7,
+    });
+
+    // Pre-populate
+    for (let i = 0; i < 111; i++) {
+      const p = spawnParticle();
+      p.depth = Math.random(); // scatter across depth
+      particles.current.push(p);
+    }
 
     const draw = () => {
       const canvas = canvasRef.current;
@@ -25,6 +54,10 @@ export default function GridScene() {
       const h = canvas.clientHeight;
       if (w < 10 || h < 10) return;
 
+      const now = performance.now();
+      const dt = Math.min((now - lastTime.current) / 1000, 0.05);
+      lastTime.current = now;
+
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       canvas.width = w * dpr;
       canvas.height = h * dpr;
@@ -32,7 +65,7 @@ export default function GridScene() {
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, w, h);
 
-      // Outer rect = full canvas
+      // Outer rect
       const oL = 0, oT = 0, oR = w, oB = h;
 
       // Inner rect
@@ -95,132 +128,113 @@ export default function GridScene() {
         ctx.stroke();
       }
 
-      // ─── Inner rectangle — almost white ───
+      // ─── Glow halo behind the rectangle ───
+      const glowSize = Math.max(iW, iH) * 3;
+      const glowGrad = ctx.createRadialGradient(cx, cy, Math.min(iW, iH) * 0.3, cx, cy, glowSize);
+      glowGrad.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
+      glowGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.04)');
+      glowGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      ctx.fillStyle = glowGrad;
+      ctx.fillRect(cx - glowSize, cy - glowSize, glowSize * 2, glowSize * 2);
+
+      // ─── Inner rectangle ───
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.fillRect(Math.round(iL), Math.round(iT), Math.round(iW), Math.round(iH));
 
-      // ─── Wireframe sphere — delayed entrance, levitating ───
-      const elapsed = (performance.now() - startTime.current) / 1000;
-      const sphereDelay = 7; // appears after everything else
-      const sphereFadeIn = 4; // slow dramatic fade
-      const sphereProgress = Math.min(1, Math.max(0, (elapsed - sphereDelay) / sphereFadeIn));
-      const sphereOpacity = sphereProgress;
+      // ─── Wall particles ───
+      // Project a particle to screen coordinates based on wall, position, and depth
+      const projectParticle = (wall: number, pos: number, depth: number): [number, number] => {
+        // depth: 0 = at inner rect, 1 = at outer rect
+        // Use same perspective easing as grid
+        const t = 1 - depth; // invert: 0=outer, 1=inner for lerp
+        const eased = depthEase(t);
 
-      if (sphereOpacity > 0) {
-      const sphereX = cx;
-      // Smooth scale: 0.22 at 320px → 0.14 at 1024px+
-      const sizeFactor = 0.14 + 0.08 * Math.max(0, Math.min(1, (1024 - w) / 704));
-      const sphereRadius = Math.min(w, h) * sizeFactor;
-
-      // Levitation — gentle, controlled range
-      const time = performance.now() * 0.001;
-      const bobAmount = sphereRadius * 0.2;
-      const bobOffset = Math.sin(time * 0.4) * bobAmount
-        + Math.sin(time * 0.67) * bobAmount * 0.3;
-      // Position sphere — just appears in place, no rise
-      const sphereBaseY = lerp(cy, oB, 0.55);
-      const sphereY = sphereBaseY + bobOffset;
-
-      // Shadow — wide, darkness reacts to sphere proximity
-      const shadowFixedY = sphereBaseY + sphereRadius * 1.2;
-      const dist = shadowFixedY - sphereY;
-      const proximity = Math.max(0, 1 - dist / (sphereRadius * 2.5));
-      const shadowRx = sphereRadius * 2;
-      const shadowRy = sphereRadius * 0.4;
-      const shadowAlpha = (0.3 + proximity * 0.6) * sphereOpacity; // 0.3 far → 0.9 close
-      // Dark core — gets much darker when sphere is close
-      ctx.fillStyle = `rgba(0, 0, 0, ${shadowAlpha})`;
-      ctx.beginPath();
-      ctx.ellipse(sphereX, shadowFixedY, shadowRx * 0.4, shadowRy * 0.5, 0, 0, Math.PI * 2);
-      ctx.fill();
-      // Soft edge
-      const shadowGrad = ctx.createRadialGradient(sphereX, shadowFixedY, shadowRx * 0.2, sphereX, shadowFixedY, shadowRx);
-      shadowGrad.addColorStop(0, `rgba(0, 0, 0, ${shadowAlpha * 0.5})`);
-      shadowGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
-      ctx.fillStyle = shadowGrad;
-      ctx.beginPath();
-      ctx.ellipse(sphereX, shadowFixedY, shadowRx, shadowRy, 0, 0, Math.PI * 2);
-      ctx.fill();
-
-      const rotX = sphereAngle.current * 0.7;
-      const rotY = sphereAngle.current;
-      const cosRY = Math.cos(rotY), sinRY = Math.sin(rotY);
-      const cosRX = Math.cos(rotX), sinRX = Math.sin(rotX);
-
-      const projectSphere = (x3: number, y3: number, z3: number): [number, number, number] => {
-        const rx = x3 * cosRY + z3 * sinRY;
-        const rz = -x3 * sinRY + z3 * cosRY;
-        const ry = y3 * cosRX - rz * sinRX;
-        const fz = y3 * sinRX + rz * cosRX;
-        return [sphereX + rx * sphereRadius, sphereY - ry * sphereRadius, fz];
-      };
-
-      const seg = 48;
-
-      // Solid white fill
-      ctx.globalAlpha = sphereOpacity;
-      ctx.fillStyle = '#fff';
-      ctx.beginPath();
-      ctx.arc(sphereX, sphereY, sphereRadius + 1, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Clip wires to sphere circle
-      ctx.save();
-      ctx.beginPath();
-      ctx.arc(sphereX, sphereY, sphereRadius + 1, 0, Math.PI * 2);
-      ctx.clip();
-
-      // Dark wires on white fill
-      ctx.strokeStyle = 'rgba(0, 0, 0, 0.25)';
-      ctx.lineWidth = 1.5;
-      ctx.globalAlpha = sphereOpacity;
-
-      const drawFrontRing = (genPoint: (i: number) => [number, number, number]) => {
-        // Draw segment by segment with smooth alpha fade near silhouette
-        for (let i = 0; i < seg; i++) {
-          const [x1, y1, z1] = genPoint(i);
-          const [x2, y2, z2] = genPoint(i + 1);
-          const avgZ = (z1 + z2) / 2;
-          if (avgZ > 0.15) continue; // behind sphere, skip
-          // Smooth fade: fully visible at z<-0.1, fades out between -0.1 and 0.15
-          const fade = avgZ < -0.1 ? 1 : 1 - (avgZ + 0.1) / 0.25;
-          ctx.globalAlpha = fade;
-          ctx.beginPath();
-          ctx.moveTo(x1, y1);
-          ctx.lineTo(x2, y2);
-          ctx.stroke();
+        switch (wall) {
+          case 0: // top wall
+            return [lerp(lerp(oL, oR, pos), lerp(iL, iR, pos), eased),
+                    lerp(oT, iT, eased)];
+          case 1: // bottom wall
+            return [lerp(lerp(oL, oR, pos), lerp(iL, iR, pos), eased),
+                    lerp(oB, iB, eased)];
+          case 2: // left wall
+            return [lerp(oL, iL, eased),
+                    lerp(lerp(oT, oB, pos), lerp(iT, iB, pos), eased)];
+          case 3: // right wall
+            return [lerp(oR, iR, eased),
+                    lerp(lerp(oT, oB, pos), lerp(iT, iB, pos), eased)];
+          default:
+            return [cx, cy];
         }
       };
 
-      // 14 latitudes
-      for (let lat = -84; lat <= 84; lat += 12) {
-        const phi = (lat * Math.PI) / 180;
-        const cp = Math.cos(phi), sp = Math.sin(phi);
-        drawFrontRing((i) => {
-          const theta = (i / seg) * Math.PI * 2;
-          return projectSphere(cp * Math.sin(theta), sp, cp * Math.cos(theta));
-        });
-      }
+      // Delayed entrance — particles start appearing after 5s
+      const elapsed = (now - startTime.current) / 1000;
+      const particleOpacity = Math.min(1, Math.max(0, (elapsed - 5) / 3));
 
-      // 14 meridians
-      for (let j = 0; j < 14; j++) {
-        const theta = (j / 14) * Math.PI;
-        const ct = Math.cos(theta), st = Math.sin(theta);
-        drawFrontRing((i) => {
-          const phi = (i / seg) * Math.PI * 2;
-          return projectSphere(Math.cos(phi) * st, Math.sin(phi), Math.cos(phi) * ct);
-        });
-      }
+      if (particleOpacity > 0) {
+        // Update particles
+        const pts = particles.current;
+        for (let i = pts.length - 1; i >= 0; i--) {
+          const p = pts[i];
 
-      ctx.restore();
-      ctx.globalAlpha = 1;
-      } // end sphereOpacity > 0
+          // Store trail
+          p.trail.push(p.depth);
+          if (p.trail.length > 14) p.trail.shift();
+
+          // Moving INWARD — fast at edges, decelerate toward center
+          const accel = 0.3 + p.depth * 2.5;
+          p.depth -= p.speed * accel * dt;
+
+          // Die at center, respawn at edge
+          if (p.depth <= 0.01) {
+            pts[i] = spawnParticle();
+          }
+        }
+
+        // Maintain particle count
+        while (pts.length < 111) pts.push(spawnParticle());
+
+        // Draw particles with trails
+        for (const p of pts) {
+          // Size: big at edge, tiny near center
+          const size = 1.5 + p.depth * 5;
+          const alpha = particleOpacity * p.brightness * (0.15 + p.depth * 0.85);
+
+          // Draw trail — swoosh from outer (old) to inner (current)
+          if (p.trail.length > 1) {
+            for (let t = 0; t < p.trail.length - 1; t++) {
+              const trailProgress = t / p.trail.length;
+              const trailAlpha = alpha * trailProgress * 0.35;
+              if (trailAlpha < 0.01) continue;
+              const [x1, y1] = projectParticle(p.wall, p.pos, p.trail[t]);
+              const [x2, y2] = projectParticle(p.wall, p.pos, p.trail[t + 1]);
+              const trailSize = size * (0.3 + trailProgress * 0.7);
+              ctx.strokeStyle = `rgba(255, 255, 255, ${trailAlpha})`;
+              ctx.lineWidth = trailSize * 0.6;
+              ctx.lineCap = 'round';
+              ctx.beginPath();
+              ctx.moveTo(x1, y1);
+              ctx.lineTo(x2, y2);
+              ctx.stroke();
+            }
+          }
+
+          // Particle head
+          const [px, py] = projectParticle(p.wall, p.pos, p.depth);
+          ctx.globalAlpha = alpha;
+          ctx.fillStyle = '#fff';
+          ctx.beginPath();
+          ctx.arc(px, py, size * 0.4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        ctx.globalAlpha = 1;
+      }
     };
 
     const animate = () => {
       if (!running) return;
-      scrollRef.current += 0.0004;
-      sphereAngle.current -= 0.002;
+      scrollRef.current -= 0.0004;
       draw();
       rafRef.current = requestAnimationFrame(animate);
     };

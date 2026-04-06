@@ -7,59 +7,65 @@ interface LoadingDotsProps {
 }
 
 export default function LoadingDots({ onComplete }: LoadingDotsProps) {
-  const [progress, setProgress] = useState(0);
+  const [blocks, setBlocks] = useState(0);
   const [completed, setCompleted] = useState(false);
   const onCompleteRef = useRef(onComplete);
 
-  // Keep ref updated without triggering re-renders
   useEffect(() => {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
-  const barWidth = 32; // Total width of progress bar
-  const filledChar = '█';
-  const emptyChar = '░';
+  const totalBlocks = 20;
 
   useEffect(() => {
     if (completed) return;
 
     const getDelay = () => {
-      // Variable speed - starts slow, speeds up in middle, slows at end (faster version)
-      if (progress < 3) return 150;
-      if (progress < 15) return 40 + Math.random() * 30;
-      return 100 + Math.random() * 75;
+      if (blocks < 3) return 120;
+      if (blocks < 15) return 50 + Math.random() * 40;
+      return 100 + Math.random() * 80;
     };
 
     const timeout = setTimeout(() => {
-      if (progress >= barWidth) {
+      if (blocks >= totalBlocks) {
         setCompleted(true);
-        setTimeout(() => {
-          onCompleteRef.current?.();
-        }, 400);
+        setTimeout(() => onCompleteRef.current?.(), 400);
       } else {
-        setProgress((prev) => prev + 1);
+        setBlocks(prev => prev + 1);
       }
     }, getDelay());
 
     return () => clearTimeout(timeout);
-  }, [progress, completed, barWidth]);
-
-  const filled = filledChar.repeat(progress);
-  const empty = emptyChar.repeat(barWidth - progress);
+  }, [blocks, completed]);
 
   return (
-    <div
-      style={{
+    <div style={{
+      width: '100%',
+      display: 'flex',
+      justifyContent: 'center',
+    }}>
+      {/* Win95 inset border */}
+      <div style={{
         width: '100%',
-        fontFamily: 'var(--font-terminal), VT323, Fixedsys, Terminal, Consolas, monospace',
-        fontSize: '0.8rem',
-        color: 'rgba(255,255,255,0.6)',
+        height: '18px',
+        backgroundColor: '#c0c0c0',
+        border: '2px solid',
+        borderColor: '#808080 #dfdfdf #dfdfdf #808080',
+        padding: '2px',
         display: 'flex',
-        justifyContent: 'center',
-        gap: '0.5em',
-      }}
-    >
-      <span>[{filled}{empty}]</span>
+        gap: '1px',
+        alignItems: 'stretch',
+      }}>
+        {Array.from({ length: totalBlocks }).map((_, i) => (
+          <div
+            key={i}
+            style={{
+              flex: 1,
+              backgroundColor: i < blocks ? 'var(--selection-fg, #000)' : 'transparent',
+            }}
+          />
+        ))}
+      </div>
     </div>
   );
 }

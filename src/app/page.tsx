@@ -438,13 +438,14 @@ export default function Home() {
         <div
           style={{
             opacity: showLoader ? 1 : 0,
-            height: '1.2rem',
+            transition: 'opacity 0.5s ease',
+            width: '86%',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
           }}
         >
-          {(phase === 'boot' || phase === 'loading') && (
+          {showLoader && (phase === 'boot' || phase === 'loading') && (
             <LoadingDots key={rebootCount} onComplete={handleLoadingComplete} />
           )}
         </div>
@@ -484,16 +485,17 @@ export default function Home() {
           position: 'absolute',
           top: `calc(${contentInset} - 10px)`,
           left: contentInset,
-          display: showMainContent ? 'block' : 'none',
+          display: showMainContent ? 'inline-block' : 'none',
           fontFamily: winFont,
           fontSize: 'clamp(3rem, 9vw, 5rem)',
-          color: 'white',
+          color: 'var(--selection-fg, #000)',
+          backgroundColor: 'var(--selection-bg, #fff)',
           visibility: entrance.showTitlePrompt ? 'visible' : 'hidden',
           cursor: 'pointer',
           zIndex: 10,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
-          maxWidth: `calc(100vw - ${contentInset} - ${contentInset} - 60px)`,
+          padding: '0 0.1em',
         }}
         onClick={handleTitleClick}
       >
