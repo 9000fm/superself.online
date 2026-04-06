@@ -31,14 +31,14 @@ export default function GridScene() {
     const spawnParticle = (): Particle => ({
       wall: Math.floor(Math.random() * 4),
       pos: Math.random(),
-      depth: 0.85 + Math.random() * 0.15,    // start at outer edges
-      speed: 0.03 + Math.random() * 0.06,
+      depth: Math.random() * 0.03,            // start near center
+      speed: 0.015 + Math.random() * 0.04,
       trail: [],
       brightness: 0.3 + Math.random() * 0.7,
     });
 
     // Pre-populate
-    for (let i = 0; i < 111; i++) {
+    for (let i = 0; i < 150; i++) {
       const p = spawnParticle();
       p.depth = Math.random(); // scatter across depth
       particles.current.push(p);
@@ -181,18 +181,18 @@ export default function GridScene() {
           p.trail.push(p.depth);
           if (p.trail.length > 14) p.trail.shift();
 
-          // Moving INWARD — fast at edges, decelerate toward center
-          const accel = 0.3 + p.depth * 2.5;
-          p.depth -= p.speed * accel * dt;
+          // Moving OUTWARD — slow at center, faster toward edges
+          const accel = 0.1 + p.depth * p.depth * 6;
+          p.depth += p.speed * accel * dt;
 
-          // Die at center, respawn at edge
-          if (p.depth <= 0.01) {
+          // Die at edge, respawn at center
+          if (p.depth >= 1) {
             pts[i] = spawnParticle();
           }
         }
 
         // Maintain particle count
-        while (pts.length < 111) pts.push(spawnParticle());
+        while (pts.length < 150) pts.push(spawnParticle());
 
         // Draw particles with trails
         for (const p of pts) {

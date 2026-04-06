@@ -76,6 +76,8 @@ export default function Home() {
   // Popup/section states
   const [showWelcomePopup, setShowWelcomePopup] = useState(false);
   const [activeSection, setActiveSection] = useState<ActiveSection>(null);
+  const [visibleNavItems, setVisibleNavItems] = useState(0);
+  const [navBlinking, setNavBlinking] = useState<number | null>(null);
   const [activeWindow, setActiveWindow] = useState<ActiveWindow>(null);
   const [showNotification, setShowNotification] = useState(false);
   const [welcomeStep, setWelcomeStep] = useState<WelcomeStep>('message');
@@ -88,13 +90,8 @@ export default function Home() {
   const [subscribeEmail, setSubscribeEmail] = useState('');
   const [isSubscribed, setIsSubscribed] = useState(false);
   const [showSubscribedPopup, setShowSubscribedPopup] = useState(false);
-  const [pressedBurger, setPressedBurger] = useState(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
   const lastClickPos = useRef({ x: 0, y: 0 });
-
-
-  // Menu state
-  const [showMenuDropdown, setShowMenuDropdown] = useState(false);
 
   // Skip and replay state
   const [skipMode, setSkipMode] = useState(false);
@@ -150,7 +147,6 @@ export default function Home() {
       setShowWelcomePopup(false);
       setActiveSection(null);
       setShowNotification(false);
-      setShowMenuDropdown(false);
       setShowLogo(false);
       setShowLoader(false);
       setRebootCount((c) => c + 1);
@@ -200,6 +196,31 @@ export default function Home() {
       window.removeEventListener('orientationchange', checkAspectRatio);
     };
   }, []);
+
+  // Nav items blink in one by one during entrance
+  useEffect(() => {
+    if (entrance.burgerVisible && visibleNavItems < 3) {
+      // For each item: blink it 3 times then keep it visible
+      const blinkDuration = 300; // total blink time per item
+      const stagger = 400; // delay between items
+
+      const timer = setTimeout(() => {
+        // Start blinking this item
+        setNavBlinking(visibleNavItems);
+        let blinks = 0;
+        const blinkInterval = setInterval(() => {
+          blinks++;
+          if (blinks >= 6) { // 3 on/off cycles
+            clearInterval(blinkInterval);
+            setNavBlinking(null);
+            setVisibleNavItems(prev => prev + 1);
+          }
+        }, 50);
+      }, visibleNavItems * stagger);
+
+      return () => clearTimeout(timer);
+    }
+  }, [entrance.burgerVisible, visibleNavItems]);
 
   // Show "1 new message" notification after entering main phase
   useEffect(() => {
@@ -325,7 +346,6 @@ export default function Home() {
       if (e.key === 'Escape') {
         setShowWelcomePopup(false);
         setActiveSection(null);
-        setShowMenuDropdown(false);
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -402,7 +422,7 @@ export default function Home() {
           bottom: frameInsetBottom,
           display: showMainContent ? 'block' : 'none',
           pointerEvents: 'none',
-          border: '1px solid rgba(255,255,255,0.4)',
+          border: '1px solid rgba(255,255,255,0.6)',
           opacity: entrance.showFrame ? 1 : 0,
           transition: 'opacity 1.5s ease-in-out',
         }}
@@ -439,7 +459,8 @@ export default function Home() {
           style={{
             opacity: showLoader ? 1 : 0,
             transition: 'opacity 0.5s ease',
-            width: '86%',
+            width: '80%',
+            marginTop: '0.5rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -483,23 +504,24 @@ export default function Home() {
       <div
         style={{
           position: 'absolute',
-          top: `calc(${contentInset} - 10px)`,
+          top: contentInset,
           left: contentInset,
           display: showMainContent ? 'inline-block' : 'none',
           fontFamily: winFont,
-          fontSize: 'clamp(3rem, 9vw, 5rem)',
-          color: 'var(--selection-fg, #000)',
-          backgroundColor: 'var(--selection-bg, #fff)',
+          fontSize: 'clamp(2.5rem, 7vw, 5rem)',
+          color: 'white',
+          backgroundColor: 'transparent',
           visibility: entrance.showTitlePrompt ? 'visible' : 'hidden',
           cursor: 'pointer',
           zIndex: 10,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
-          padding: '0 0.1em',
+          padding: '0',
+          lineHeight: '1',
         }}
         onClick={handleTitleClick}
       >
-        <span className="blink-slow" style={{ opacity: 0.5, marginRight: '0.15em' }}>&gt;</span>{entrance.typedTitle}
+        {entrance.typedTitle}
       </div>
 
       {/* Center - ASCII Art */}
@@ -585,117 +607,48 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Burger Menu */}
-      <div
+      {/* Navigation — always visible, below title */}
+      <nav
+        aria-label="Main navigation"
         style={{
           position: 'absolute',
-          right: contentInset,
-          top: contentInset,
+          top: `calc(${contentInset} + clamp(5rem, 14vw, 9rem))`,
+          left: contentInset,
           display: showMainContent ? 'flex' : 'none',
           flexDirection: 'column',
-          alignItems: 'flex-end',
+          alignItems: 'flex-start',
+          gap: 'clamp(14px, 4vw, 24px)',
           opacity: entrance.burgerVisible ? 1 : 0,
-          transition: 'opacity 0.6s ease-in-out',
+          transition: 'opacity 0.8s ease-in-out',
           zIndex: 10,
         }}
       >
-        <button
-          onClick={() => setShowMenuDropdown(!showMenuDropdown)}
-          onMouseDown={() => setPressedBurger(true)}
-          onMouseUp={() => setPressedBurger(false)}
-          onMouseLeave={() => setPressedBurger(false)}
-          onTouchStart={() => setPressedBurger(true)}
-          onTouchEnd={() => setPressedBurger(false)}
-          aria-label="Menu"
-          aria-expanded={showMenuDropdown}
-          style={{
-            backgroundColor: 'var(--win95-bg, #c0c0c0)',
-            color: 'var(--nav-hover-fg, #000080)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            height: 'clamp(46px, 10vw, 54px)',
-            width: 'clamp(46px, 10vw, 54px)',
-            border: 'none',
-            boxShadow: showMenuDropdown || pressedBurger
-              ? 'inset 1px 1px 0 var(--win95-shadow, #0a0a0a), inset -1px -1px 0 var(--win95-highlight, #dfdfdf)'
-              : 'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf)',
-          }}
-        >
-          {showMenuDropdown ? (
-            <svg style={{ width: '60%', height: '60%' }} viewBox="0 0 20 20" fill="none">
-              <path d="M4 4L16 16M16 4L4 16" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
-          ) : (
-            <svg style={{ width: '60%', height: '60%' }} viewBox="0 0 20 20" fill="none">
-              <path d="M3 5H17M3 10H17M3 15H17" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" />
-            </svg>
-          )}
-        </button>
-
-        {showMenuDropdown && (
-          <nav aria-label="Main navigation" style={{ marginTop: '28px', display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '20px' }}>
-            <button
-              className={activeSection === 'about' ? '' : 'nav-cli'}
-              onClick={() => setActiveSection(activeSection === 'about' ? null : 'about')}
-              style={{
-                fontFamily: winFont,
-                fontSize: 'clamp(1.1rem, 4vw, 1.4rem)',
-                color: activeSection === 'about' ? 'var(--nav-hover-fg, #000080)' : 'white',
-                backgroundColor: activeSection === 'about' ? 'var(--nav-hover-bg, #c0c0c0)' : 'transparent',
-                cursor: 'pointer',
-                padding: '4px 8px',
-                border: 'none',
-              }}
-              aria-label={t.about}
-            >
-              {scrambled.about || t.about}
-              <span className="nav-cursor" style={{ color: activeSection === 'about' ? 'var(--nav-hover-fg, #000080)' : undefined }}>
-                _
-              </span>
-            </button>
-            <button
-              className={activeSection === 'shop' ? '' : 'nav-cli'}
-              onClick={() => setActiveSection(activeSection === 'shop' ? null : 'shop')}
-              style={{
-                fontFamily: winFont,
-                fontSize: 'clamp(1.1rem, 4vw, 1.4rem)',
-                color: activeSection === 'shop' ? 'var(--nav-hover-fg, #000080)' : 'white',
-                backgroundColor: activeSection === 'shop' ? 'var(--nav-hover-bg, #c0c0c0)' : 'transparent',
-                cursor: 'pointer',
-                padding: '4px 8px',
-                border: 'none',
-              }}
-              aria-label={t.shop}
-            >
-              {scrambled.shop || t.shop}
-              <span className="nav-cursor" style={{ color: activeSection === 'shop' ? 'var(--nav-hover-fg, #000080)' : undefined }}>
-                _
-              </span>
-            </button>
-            <button
-              className={activeSection === 'mixes' ? '' : 'nav-cli'}
-              onClick={() => setActiveSection(activeSection === 'mixes' ? null : 'mixes')}
-              style={{
-                fontFamily: winFont,
-                fontSize: 'clamp(1.1rem, 4vw, 1.4rem)',
-                color: activeSection === 'mixes' ? 'var(--nav-hover-fg, #000080)' : 'white',
-                backgroundColor: activeSection === 'mixes' ? 'var(--nav-hover-bg, #c0c0c0)' : 'transparent',
-                cursor: 'pointer',
-                padding: '4px 8px',
-                border: 'none',
-              }}
-              aria-label={t.mixes}
-            >
-              {scrambled.mixes || t.mixes}
-              <span className="nav-cursor" style={{ color: activeSection === 'mixes' ? 'var(--nav-hover-fg, #000080)' : undefined }}>
-                _
-              </span>
-            </button>
-          </nav>
-        )}
-      </div>
+        {(['about', 'shop', 'mixes'] as const).map((section, idx) => {
+          const isVisible = visibleNavItems > idx;
+          const isBlinking = navBlinking === idx;
+          if (!isVisible && !isBlinking) return null;
+          return (
+          <button
+            key={section}
+            className={activeSection === section ? '' : 'nav-cli'}
+            onClick={() => setActiveSection(activeSection === section ? null : section)}
+            style={{
+              fontFamily: winFont,
+              fontSize: 'clamp(1.2rem, 4vw, 1.6rem)',
+              color: activeSection === section ? 'var(--selection-fg, #000)' : 'rgba(255,255,255,0.6)',
+              backgroundColor: activeSection === section ? 'var(--selection-bg, #fff)' : 'transparent',
+              cursor: 'pointer',
+              padding: '2px 4px',
+              border: 'none',
+              animation: isBlinking ? 'blink 0.1s step-end infinite' : 'none',
+            }}
+            aria-label={t[section === 'about' ? 'about' : section === 'shop' ? 'shop' : 'mixes']}
+          >
+            <span className={activeSection === section ? 'blink' : ''}>&gt;</span>{' '}{(scrambled[section === 'about' ? 'about' : section === 'shop' ? 'shop' : 'mixes'] || t[section === 'about' ? 'about' : section === 'shop' ? 'shop' : 'mixes']).replace('> ', '')}
+          </button>
+          );
+        })}
+      </nav>
 
       {/* Welcome Popup */}
       {showWelcomePopup && (
@@ -877,11 +830,11 @@ export default function Home() {
               borderColor: 'var(--win95-highlight, #dfdfdf) var(--win95-shadow, #0a0a0a) var(--win95-shadow, #0a0a0a) var(--win95-highlight, #dfdfdf)',
               boxShadow: '2px 2px 0 #000',
               fontFamily: winFont,
-              fontSize: 'clamp(0.85rem, 2.5vw, 1rem)',
+              fontSize: 'clamp(0.9rem, 2.5vw, 1.05rem)',
               color: 'var(--win95-text, #000)',
-              width: '360px',
-              maxWidth: '75vw',
-              lineHeight: '1.8',
+              width: '340px',
+              maxWidth: '70vw',
+              lineHeight: '1.6',
               textAlign: 'center',
               position: draggable.aboutPos.x || draggable.aboutPos.y ? 'fixed' : 'relative',
               top: draggable.aboutPos.y || undefined,
@@ -943,8 +896,8 @@ export default function Home() {
                 </svg>
               </button>
             </div>
-            <div style={{ padding: '10px clamp(16px, 5vw, 28px) clamp(28px, 4vw, 36px)', overflow: 'hidden', animation: 'fadeIn 0.4s ease-out' }}>
-              <p style={{ wordBreak: 'break-word' }}>
+            <div style={{ padding: '14px 14px 18px', overflow: 'hidden', animation: 'fadeIn 0.4s ease-out' }}>
+              <p style={{ wordBreak: 'break-word', margin: 0 }}>
                 <span style={{ backgroundColor: 'var(--nav-hover-fg, #000080)', color: 'var(--nav-hover-fg-contrast, #fff)', padding: '2px 6px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' }}>superself</span>{' '}
                 {scrambled.aboutText || t.aboutText}
               </p>
@@ -1033,7 +986,7 @@ export default function Home() {
             left: contentInset,
             cursor: 'pointer',
             fontFamily: winFont,
-            fontSize: 'clamp(0.85rem, 2vw, 1rem)',
+            fontSize: 'clamp(0.85rem, 2vw, 1.3rem)',
             color: 'rgba(255,255,255,0.75)',
             zIndex: 10,
           }}
@@ -1056,7 +1009,7 @@ export default function Home() {
           flexDirection: phase === 'confirm' ? 'row' : 'column-reverse',
           gap: phase === 'confirm' ? '24px' : 'clamp(16px, 4vw, 24px)',
           fontFamily: winFont,
-          fontSize: 'clamp(1rem, 2.5vw, 1.15rem)',
+          fontSize: 'clamp(1rem, 2.5vw, 1.4rem)',
           opacity: (phase === 'confirm' && confirmScreen.confirmLangVisible) || (phase === 'main' && entrance.showFooter) ? 1 : 0,
           transition: 'opacity 0.8s ease-in-out',
           transitionDelay: phase === 'main' && entrance.showFooter ? '4.0s' : '0s',

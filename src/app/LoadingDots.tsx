@@ -15,7 +15,7 @@ export default function LoadingDots({ onComplete }: LoadingDotsProps) {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
-  const totalBlocks = 20;
+  const totalBlocks = 14;
 
   useEffect(() => {
     if (completed) return;
@@ -47,13 +47,13 @@ export default function LoadingDots({ onComplete }: LoadingDotsProps) {
       {/* Win95 inset border */}
       <div style={{
         width: '100%',
-        height: '18px',
+        height: '12px',
         backgroundColor: '#c0c0c0',
         border: '2px solid',
         borderColor: '#808080 #dfdfdf #dfdfdf #808080',
         padding: '2px',
         display: 'flex',
-        gap: '1px',
+        gap: '2px',
         alignItems: 'stretch',
       }}>
         {Array.from({ length: totalBlocks }).map((_, i) => (

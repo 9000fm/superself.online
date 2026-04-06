@@ -41,14 +41,12 @@ export const TIMING = {
   frameShow: 800,
   titleStart: 1500,
   footerShow: 3500,
-  burgerShow: 5000,
   welcomePopup: { min: 18000, max: 22000 },
 
   // Main entrance (skip mode)
   skipFrameShow: 300,
   skipTitleStart: 800,
   skipFooterShow: 1500,
-  skipBurgerShow: 2000,
   skipWelcomePopup: 12000,
 
   // Scramble effects
@@ -66,8 +64,6 @@ export const TIMING = {
   // Fade transitions
   frameFade: 600,
   footerFade: 1500,
-  burgerFade: 600,
-
   // Toast duration
   toastDuration: 2000,
 
