@@ -12,19 +12,6 @@ interface Particle {
   brightness: number;
 }
 
-interface WallMark {
-  x: number; y: number;
-  life: number;
-  radius: number;
-  wall: number; // 0=top,1=bottom,2=left,3=right,4=front,5=back
-}
-
-interface BurstParticle {
-  x: number; y: number;
-  vx: number; vy: number;
-  life: number;
-  size: number;
-}
 
 // ─── 2D Perspective Grid + Ball + Particles ───
 
@@ -35,20 +22,6 @@ export default function GridScene() {
   const startTime = useRef(0);
   const particles = useRef<Particle[]>([]);
   const lastTime = useRef(0);
-  const wallMarks = useRef<WallMark[]>([]);
-  const burstParticles = useRef<BurstParticle[]>([]);
-  const ball = useRef({
-    x: 0.5, y: 0.5,
-    vx: 0.2, vy: 0.15,
-    vz: 0.08,
-    depth: 0.02,
-    spawned: false,
-    squashX: 1, squashY: 1, // 1 = circle, <1 = squished on that axis
-    squashDecay: 0,         // time remaining for squash
-    lastKick: 0,            // timestamp of last random kick
-  });
-  // Store last projected ball screen position for click detection
-  const ballScreenPos = useRef({ x: 0, y: 0, radius: 0 });
 
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
   const depthEase = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -170,84 +143,6 @@ export default function GridScene() {
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
       ctx.fillRect(Math.round(iL), Math.round(iT), Math.round(iW), Math.round(iH));
 
-      // ─── Bouncing ball (3D) ───
-      const elapsedBall = (now - startTime.current) / 1000;
-      const ballDelay = 8;
-      const b = ball.current;
-      // Spawn ball after delay
-      if (!b.spawned && elapsedBall >= ballDelay) {
-        b.spawned = true;
-        b.depth = 0.25;
-        b.vz = 0.04;
-        b.vx = 0.18;
-        b.vy = 0.12;
-      }
-      const ballOpacity = b.spawned ? 1 : 0;
-
-      // Helper: project a point in tunnel space to screen
-      const projectTunnel = (px: number, py: number, pd: number): [number, number, number, number] => {
-        const e = depthEase(1 - pd);
-        const l = lerp(oL, iL, e), r = lerp(oR, iR, e);
-        const t = lerp(oT, iT, e), b = lerp(oB, iB, e);
-        const sz = (r - l) * 0.07; // ball radius scales with depth — big when close
-        return [lerp(l, r, px), lerp(t, b, py), sz, e];
-      };
-
-
-      // Update + draw burst particles
-      const bursts = burstParticles.current;
-      for (let i = bursts.length - 1; i >= 0; i--) {
-        const bp = bursts[i];
-        bp.x += bp.vx * dt;
-        bp.y += bp.vy * dt;
-        bp.life -= dt * 1.5;
-        if (bp.life <= 0) { bursts.splice(i, 1); continue; }
-        ctx.globalAlpha = bp.life * 0.8;
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(bp.x, bp.y, bp.size * bp.life, 0, Math.PI * 2);
-        ctx.fill();
-      }
-
-      ctx.globalAlpha = 1;
-
-      if (ballOpacity > 0) {
-        // Gravity — very subtle
-        b.vy += 0.04 * dt;
-
-        // Move
-        b.x += b.vx * dt;
-        b.y += b.vy * dt;
-        b.depth += b.vz * dt;
-
-        // Bounce off walls — slight energy loss
-        if (b.x <= 0) { b.x = 0; b.vx = Math.abs(b.vx) * 0.95; }
-        if (b.x >= 1) { b.x = 1; b.vx = -Math.abs(b.vx) * 0.95; }
-        if (b.y <= 0) { b.y = 0; b.vy = Math.abs(b.vy) * 0.95; }
-        if (b.y >= 1) { b.y = 1; b.vy = -Math.abs(b.vy) * 0.95; }
-        if (b.depth <= 0.05) { b.depth = 0.05; b.vz = Math.abs(b.vz) * 0.95; }
-        if (b.depth >= 0.95) { b.depth = 0.95; b.vz = -Math.abs(b.vz) * 0.95; }
-
-        // Random kick if ball gets too slow
-        const speed = Math.sqrt(b.vx * b.vx + b.vy * b.vy);
-        if (speed < 0.05 && now - b.lastKick > 5000) {
-          b.lastKick = now;
-          const angle = Math.random() * Math.PI * 2;
-          b.vx += Math.cos(angle) * 0.2;
-          b.vy += Math.sin(angle) * 0.2 - 0.1; // slight upward bias
-          b.vz += (Math.random() - 0.5) * 0.1;
-        }
-
-        // Record + draw trajectory line
-        const [bx, by, bSz] = projectTunnel(b.x, b.y, b.depth);
-        // Ball — solid white, squash on bounce
-        ballScreenPos.current = { x: bx, y: by, radius: bSz };
-        ctx.globalAlpha = 1;
-        ctx.fillStyle = '#fff';
-        ctx.beginPath();
-        ctx.arc(bx, by, bSz, 0, Math.PI * 2);
-        ctx.fill();
-      }
 
       // ─── Wall particles ───
       // Project a particle to screen coordinates based on wall, position, and depth
@@ -347,134 +242,11 @@ export default function GridScene() {
       rafRef.current = requestAnimationFrame(animate);
     };
 
-    // Drag-and-throw state
-    let dragging = false;
-    let dragStart = { x: 0, y: 0, time: 0 };
-    let dragLast = { x: 0, y: 0, time: 0 };
-
-    const getPos = (e: MouseEvent | TouchEvent) => {
-      const canvas = canvasRef.current;
-      if (!canvas) return { x: 0, y: 0 };
-      const rect = canvas.getBoundingClientRect();
-      const clientX = 'touches' in e ? (e.touches[0]?.clientX ?? e.changedTouches?.[0]?.clientX ?? 0) : e.clientX;
-      const clientY = 'touches' in e ? (e.touches[0]?.clientY ?? e.changedTouches?.[0]?.clientY ?? 0) : e.clientY;
-      return { x: clientX - rect.left, y: clientY - rect.top };
-    };
-
-    const handleDown = (e: MouseEvent | TouchEvent) => {
-      const pos = getPos(e);
-      const bp = ballScreenPos.current;
-      const dx = pos.x - bp.x, dy = pos.y - bp.y;
-      if (Math.sqrt(dx * dx + dy * dy) < bp.radius * 3) {
-        dragging = true;
-        dragStart = { ...pos, time: performance.now() };
-        dragLast = { ...pos, time: performance.now() };
-        // Stop ball while dragging
-        ball.current.vx = 0;
-        ball.current.vy = 0;
-        ball.current.vz = 0;
-        e.preventDefault();
-      } else {
-        // Click anywhere = boost the ball in a random direction
-        const b = ball.current;
-        const angle = Math.random() * Math.PI * 2;
-        b.vx += Math.cos(angle) * 0.4;
-        b.vy += Math.sin(angle) * 0.4 - 0.15; // upward bias
-        b.vz += (Math.random() - 0.5) * 0.2;
-        // Burst particles at click
-        for (let i = 0; i < 15; i++) {
-          const a = Math.random() * Math.PI * 2;
-          const spd = 30 + Math.random() * 100;
-          burstParticles.current.push({
-            x: pos.x, y: pos.y,
-            vx: Math.cos(a) * spd,
-            vy: Math.sin(a) * spd,
-            life: 0.5 + Math.random() * 0.4,
-            size: 1.5 + Math.random() * 2,
-          });
-        }
-      }
-    };
-
-    const handleMove = (e: MouseEvent | TouchEvent) => {
-      if (!dragging) return;
-      e.preventDefault();
-      const pos = getPos(e);
-      // Move ball to follow cursor (approximate — map screen delta to tunnel space)
-      const b = ball.current;
-      const cw = canvasRef.current?.clientWidth || 1;
-      const ch = canvasRef.current?.clientHeight || 1;
-      const e2 = depthEase(1 - b.depth);
-      const areaW = lerp(cw, cw * 0.07, e2);
-      const areaH = lerp(ch, ch * 0.07, e2);
-      b.x += (pos.x - dragLast.x) / areaW;
-      b.y += (pos.y - dragLast.y) / areaH;
-      b.x = Math.max(0, Math.min(1, b.x));
-      b.y = Math.max(0, Math.min(1, b.y));
-      dragLast = { ...pos, time: performance.now() };
-    };
-
-    const handleUp = (e: MouseEvent | TouchEvent) => {
-      if (!dragging) return;
-      dragging = false;
-      const pos = getPos(e);
-      const dt2 = Math.max(0.016, (performance.now() - dragLast.time) / 1000);
-      // Calculate throw velocity from drag
-      const throwX = (pos.x - dragStart.x);
-      const throwY = (pos.y - dragStart.y);
-      const b = ball.current;
-      const cw2 = canvasRef.current?.clientWidth || 1;
-      const ch2 = canvasRef.current?.clientHeight || 1;
-      const e2 = depthEase(1 - b.depth);
-      const areaW = lerp(cw2, cw2 * 0.07, e2);
-      const areaH = lerp(ch2, ch2 * 0.07, e2);
-      b.vx = (throwX / areaW) * 2;
-      b.vy = (throwY / areaH) * 2;
-      b.vz = (Math.random() - 0.5) * 0.15;
-      // Burst on release
-      for (let i = 0; i < 25; i++) {
-        const angle = Math.random() * Math.PI * 2;
-        const spd = 40 + Math.random() * 150;
-        burstParticles.current.push({
-          x: pos.x, y: pos.y,
-          vx: Math.cos(angle) * spd,
-          vy: Math.sin(angle) * spd,
-          life: 0.6 + Math.random() * 0.5,
-          size: 2 + Math.random() * 4,
-        });
-      }
-    };
-
-    // Global click for boost — fires even if click is on UI elements above
-    const handleGlobalClick = () => {
-      if (!ball.current.spawned) return;
-      const b = ball.current;
-      const angle = Math.random() * Math.PI * 2;
-      b.vx += Math.cos(angle) * 0.35;
-      b.vy += Math.sin(angle) * 0.35 - 0.1;
-      b.vz += (Math.random() - 0.5) * 0.15;
-    };
-
     animate();
-    const cvs = canvasRef.current;
-    cvs?.addEventListener('mousedown', handleDown);
-    cvs?.addEventListener('mousemove', handleMove);
-    cvs?.addEventListener('mouseup', handleUp);
-    cvs?.addEventListener('touchstart', handleDown, { passive: false });
-    cvs?.addEventListener('touchmove', handleMove, { passive: false });
-    cvs?.addEventListener('touchend', handleUp);
-    window.addEventListener('click', handleGlobalClick);
     window.addEventListener('resize', draw);
     return () => {
       running = false;
       cancelAnimationFrame(rafRef.current);
-      cvs?.removeEventListener('mousedown', handleDown);
-      cvs?.removeEventListener('mousemove', handleMove);
-      cvs?.removeEventListener('mouseup', handleUp);
-      cvs?.removeEventListener('touchstart', handleDown);
-      cvs?.removeEventListener('touchmove', handleMove);
-      cvs?.removeEventListener('touchend', handleUp);
-      window.removeEventListener('click', handleGlobalClick);
       window.removeEventListener('resize', draw);
     };
   }, []);
