@@ -201,8 +201,7 @@ export default function Home() {
   useEffect(() => {
     if (entrance.burgerVisible && visibleNavItems < 3) {
       // For each item: blink it 3 times then keep it visible
-      const blinkDuration = 300; // total blink time per item
-      const stagger = 400; // delay between items
+      const stagger = 800; // delay between items
 
       const timer = setTimeout(() => {
         // Start blinking this item
@@ -421,7 +420,7 @@ export default function Home() {
           right: frameInset,
           bottom: frameInsetBottom,
           display: showMainContent ? 'block' : 'none',
-          pointerEvents: 'none',
+          pointerEvents: 'auto',
           border: '1px solid rgba(255,255,255,0.6)',
           opacity: entrance.showFrame ? 1 : 0,
           transition: 'opacity 1.5s ease-in-out',
@@ -459,7 +458,7 @@ export default function Home() {
           style={{
             opacity: showLoader ? 1 : 0,
             transition: 'opacity 0.5s ease',
-            width: '80%',
+            width: 'clamp(50%, 40vw, 80%)',
             marginTop: '0.5rem',
             display: 'flex',
             alignItems: 'center',
@@ -618,8 +617,7 @@ export default function Home() {
           flexDirection: 'column',
           alignItems: 'flex-start',
           gap: 'clamp(14px, 4vw, 24px)',
-          opacity: entrance.burgerVisible ? 1 : 0,
-          transition: 'opacity 0.8s ease-in-out',
+          opacity: 1,
           zIndex: 10,
         }}
       >

@@ -15,7 +15,7 @@ export default function LoadingDots({ onComplete }: LoadingDotsProps) {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
-  const totalBlocks = 14;
+  const totalBlocks = 22;
 
   useEffect(() => {
     if (completed) return;
