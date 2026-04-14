@@ -177,7 +177,7 @@ export default function Shop({
   // Responsive sizes - compact spacing, larger elements
   const sizes = {
     // Window
-    windowWidth: isMobile ? '94vw' : 'clamp(380px, 42vw, 560px)',
+    windowWidth: 'clamp(300px, 42vw, 560px)',
     windowPadding: isMobile ? '10px' : '14px',
 
     // Title bar - match superself.exe popup style
@@ -237,7 +237,7 @@ export default function Shop({
           fontFamily: WIN_FONT,
           color: 'var(--win95-text, #000)',
           width: sizes.windowWidth,
-          maxWidth: isMobile ? '94vw' : '56vw',
+          maxWidth: '90vw',
           position: position.x || position.y ? 'fixed' : 'relative',
           top: position.y || undefined,
           left: position.x || undefined,
