@@ -12,7 +12,8 @@ export type TranslationKeys = {
   welcomeMessage: string;
   ok: string;
   aboutTitle: string;
-  aboutText: string;
+  aboutBio: string;
+  aboutCta: string;
   close: string;
   shopTitle: string;
   shopMessage: string;
@@ -51,7 +52,8 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: 'Se encontro una invitacion pendiente.',
     ok: 'Abrir',
     aboutTitle: 'acerca.txt',
-    aboutText: '(2023) es un colectivo y sello de música electrónica nacido en Lima, Perú. Surge como un espacio para compartir sonidos que realmente nos gustan y sentimos cercanos. Aquí publicamos mezclas, lanzamientos propios y una selección de música que nos representa. Déjanos tu mail para recibir novedades.',
+    aboutBio: '(2023) es un colectivo y sello de música electrónica nacido en Lima, Perú. Surge como un espacio para compartir sonidos que realmente nos gustan y sentimos cercanos. Aquí publicamos mezclas, lanzamientos propios y una selección de música que nos representa.',
+    aboutCta: 'Déjanos tu mail para recibir novedades.',
     close: 'Cerrar',
     shopTitle: 'tienda.exe',
     shopMessage: 'Tienda proximamente...',
@@ -88,7 +90,8 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: 'Pending invitation found.',
     ok: 'Open',
     aboutTitle: 'about.txt',
-    aboutText: '(2023) is an electronic music collective and label born in Lima, Peru. It emerged as a space to share sounds we truly enjoy and feel close to. Here we publish mixes, original releases and a selection of music that represents us. Leave your email to get updates.',
+    aboutBio: '(2023) is an electronic music collective and label born in Lima, Peru. It emerged as a space to share sounds we truly enjoy and feel close to. Here we publish mixes, original releases and a selection of music that represents us.',
+    aboutCta: 'Leave your email to get updates.',
     close: 'Close',
     shopTitle: 'shop.exe',
     shopMessage: 'Shop coming soon...',
@@ -125,7 +128,8 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: '保留中の招待があります。',
     ok: '開く',
     aboutTitle: '概要.txt',
-    aboutText: '(2023) はリマ、ペルー発の電子音楽コレクティブ＆レーベル。本当に好きで近いと感じるサウンドを共有する場として生まれた。ここではミックス、自主リリース、そして自分たちを表す音楽のセレクションを発信中。メールを残して最新情報を受け取ろう。',
+    aboutBio: '(2023) はリマ、ペルー発の電子音楽コレクティブ＆レーベル。本当に好きで近いと感じるサウンドを共有する場として生まれた。ここではミックス、自主リリース、そして自分たちを表す音楽のセレクションを発信中。',
+    aboutCta: 'メールを残して最新情報を受け取ろう。',
     close: '閉じる',
     shopTitle: '店舗.exe',
     shopMessage: 'ショップは近日公開...',

@@ -764,10 +764,10 @@ export default function Home() {
               fontFamily: winFont,
               fontSize: 'clamp(0.9rem, 2.5vw, 1.05rem)',
               color: 'var(--win95-text, #000)',
-              width: '420px',
-              maxWidth: '80vw',
-              lineHeight: '1.6',
-              textAlign: 'center',
+              width: '460px',
+              maxWidth: '82vw',
+              lineHeight: '1.7',
+              textAlign: 'left',
               position: draggable.aboutPos.x || draggable.aboutPos.y ? 'fixed' : 'relative',
               top: draggable.aboutPos.y || undefined,
               left: draggable.aboutPos.x || undefined,
@@ -829,10 +829,24 @@ export default function Home() {
                 </svg>
               </button>
             </div>
-            <div style={{ padding: '14px 14px 18px', overflow: 'hidden', animation: 'fadeIn 0.4s ease-out' }}>
-              <p style={{ wordBreak: 'break-word', margin: 0 }}>
-                <span style={{ backgroundColor: 'var(--selection-bg, #fff)', color: 'var(--selection-fg, #000)', padding: '2px 6px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' }}>superself</span>{' '}
-                {scrambled.aboutText || t.aboutText}
+            <div style={{ padding: '20px 22px 24px', overflow: 'hidden', animation: 'fadeIn 0.4s ease-out' }}>
+              {/* Header */}
+              <div style={{ marginBottom: '14px' }}>
+                <span style={{ backgroundColor: 'var(--selection-bg, #fff)', color: 'var(--selection-fg, #000)', padding: '3px 8px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold', fontSize: '1.1em' }}>superself</span>
+              </div>
+              {/* Bio */}
+              <p style={{ margin: 0, wordBreak: 'break-word' }}>
+                {scrambled.aboutBio || t.aboutBio}
+              </p>
+              {/* Divider */}
+              <div style={{ textAlign: 'center', margin: '14px 0', color: 'var(--win95-dark, #808080)', letterSpacing: '0.2em', fontSize: '0.8em' }}>
+                ────────
+              </div>
+              {/* CTA */}
+              <p style={{ textAlign: 'center', margin: 0 }}>
+                <span style={{ textDecoration: 'underline', cursor: 'default' }}>
+                  {scrambled.aboutCta || t.aboutCta}
+                </span>
               </p>
             </div>
           </div>

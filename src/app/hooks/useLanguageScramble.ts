@@ -14,7 +14,8 @@ interface ScrambledTexts {
   mixes: string;
   message: string;
   welcomeMsg: string;
-  aboutText: string;
+  aboutBio: string;
+  aboutCta: string;
   shopMsg: string;
   close: string;
   cancel: string;
@@ -33,7 +34,8 @@ const emptyScrambled: ScrambledTexts = {
   mixes: '',
   message: '',
   welcomeMsg: '',
-  aboutText: '',
+  aboutBio: '',
+  aboutCta: '',
   shopMsg: '',
   close: '',
   cancel: '',
@@ -73,7 +75,8 @@ export function useLanguageScramble({
         mixes: t.mixes,
         message: t.message,
         welcomeMsg: t.welcomeMessage,
-        aboutText: t.aboutText,
+        aboutBio: t.aboutBio,
+        aboutCta: t.aboutCta,
         shopMsg: t.shopMessage,
         close: t.close,
         cancel: t.cancel,
@@ -119,7 +122,8 @@ export function useLanguageScramble({
           mixes: scrambleText(newTexts.mixes, charLockFrames.mixes),
           message: scrambleText(newTexts.message, charLockFrames.message),
           welcomeMsg: scrambleText(newTexts.welcomeMsg, charLockFrames.welcomeMsg),
-          aboutText: scrambleText(newTexts.aboutText, charLockFrames.aboutText),
+          aboutBio: scrambleText(newTexts.aboutBio, charLockFrames.aboutBio),
+          aboutCta: scrambleText(newTexts.aboutCta, charLockFrames.aboutCta),
           shopMsg: scrambleText(newTexts.shopMsg, charLockFrames.shopMsg),
           close: scrambleText(newTexts.close, charLockFrames.close),
           cancel: scrambleText(newTexts.cancel, charLockFrames.cancel),
