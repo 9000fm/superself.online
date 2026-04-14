@@ -198,7 +198,7 @@ export function createMembrane(gridW: number, gridH: number): AlgorithmFn {
   let lastStep = 0;
   const stepInterval = 50; // ms between physics steps
 
-  function step(time: number) {
+  function step(_time: number) {
     // Random self-excitation
     if (Math.random() < 0.08) {
       const rx = Math.floor(Math.random() * (mw - 4)) + 2;

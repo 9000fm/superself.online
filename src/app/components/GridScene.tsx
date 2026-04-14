@@ -141,7 +141,7 @@ export default function GridScene() {
 
       // ─── Inner rectangle ───
       ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
-      ctx.fillRect(Math.round(iL), Math.round(iT), Math.round(iW), Math.round(iH));
+      ctx.fillRect(Math.floor(iL), Math.floor(iT), Math.ceil(iW) + 1, Math.ceil(iH) + 1);
 
 
       // ─── Wall particles ───

@@ -1,16 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback, Suspense } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
-import { toPng } from 'html-to-image';
 import LoadingDots from './LoadingDots';
-import AsciiArt, { AsciiArtRef } from './AsciiArt';
+import type { AsciiArtRef } from './AsciiArt';
 
 // Types
 import { Phase, Language, ActiveSection, ActiveWindow, WelcomeStep } from './types';
 
 // Translations
-import { translations, getDotChar } from './translations';
+import { translations } from './translations';
 
 // Constants
 import { CONTACT, WIN_FONT, FRAME_INSETS, WIN95_STYLES } from './constants';
@@ -33,19 +32,6 @@ import {
   Shop,
 } from './components';
 import Mixes from './components/Mixes';
-
-// VJ imports
-import { randomizeMacros, computeConfigFromMacros, ALGORITHM_NAMES } from './vj';
-import { PALETTE_KEYS } from './AsciiArt';
-
-// Generate random initial visual state
-function randomVisualState() {
-  const macros = randomizeMacros();
-  const config = computeConfigFromMacros(macros);
-  const palette = PALETTE_KEYS[Math.floor(Math.random() * PALETTE_KEYS.length)];
-  const algorithm = ALGORITHM_NAMES[Math.floor(Math.random() * ALGORITHM_NAMES.length)];
-  return { macros, config, palette, algorithm };
-}
 
 // Grid scene — imported directly (not lazy) so WebGL initializes during boot
 import GridScene from './components/GridScene';
@@ -97,14 +83,6 @@ export default function Home() {
   const [skipMode, setSkipMode] = useState(false);
   const [replayTrigger, setReplayTrigger] = useState(0);
   const [rebootCount, setRebootCount] = useState(0);
-
-  // VJ Panel state — start with random visuals
-  const [initialVisuals] = useState(randomVisualState);
-
-  const [vjConfigOverrides, setVjConfigOverrides] = useState<Partial<import('./AsciiArt').Config> | undefined>(() => initialVisuals.config);
-  const [vjPalette, setVjPalette] = useState<string | undefined>(() => initialVisuals.palette);
-  const [vjAlgorithm, setVjAlgorithm] = useState<string | undefined>(() => initialVisuals.algorithm);
-
 
   // Landscape warning
   const [showLandscapeWarning, setShowLandscapeWarning] = useState(false);
@@ -160,10 +138,6 @@ export default function Home() {
     skipMode,
     replayTrigger,
     onSkipModeComplete: () => setSkipMode(false),
-    onShowWelcomePopup: () => {
-      setShowWelcomePopup(true);
-      setActiveWindow('welcome');
-    },
   });
 
   const { scrambled } = useLanguageScramble({ phase, language });
@@ -351,45 +325,6 @@ export default function Home() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
-  const handleCapture = useCallback(async () => {
-    const container = asciiRef.current?.getContainer();
-    if (!container) return;
-    try {
-      const bg = getComputedStyle(document.documentElement)
-        .getPropertyValue('--background').trim() || '#0000FF';
-      const dataUrl = await toPng(container, {
-        backgroundColor: bg,
-        style: { top: '0', left: '0', right: '0', bottom: '0' },
-      });
-      // Convert data URL → bitmap (stays in async user-gesture chain)
-      const res = await fetch(dataUrl);
-      const blob = await res.blob();
-      const bitmap = await createImageBitmap(blob);
-      // Add 5% padding on all sides + frame border
-      const padding = Math.round(bitmap.width * 0.05);
-      const canvas = document.createElement('canvas');
-      canvas.width = bitmap.width + padding * 2;
-      canvas.height = bitmap.height + padding * 2;
-      const ctx = canvas.getContext('2d')!;
-      ctx.fillStyle = bg;
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(bitmap, padding, padding);
-      // Frame border (matches on-screen frame opacity)
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
-      ctx.lineWidth = 1;
-      ctx.strokeRect(padding - 0.5, padding - 0.5, bitmap.width + 1, bitmap.height + 1);
-      // Download
-      const finalUrl = canvas.toDataURL('image/png');
-      const link = document.createElement('a');
-      link.download = `superself-ascii-${Date.now()}.png`;
-      link.href = finalUrl;
-      link.click();
-    } catch (err) {
-      console.error('Screenshot capture failed:', err);
-    }
-  }, []);
-
-
   const showMainContent = phase === 'main';
 
   return (
@@ -474,7 +409,6 @@ export default function Home() {
       {/* === CONFIRM PHASE === */}
       {phase === 'confirm' && (
         <ConfirmScreen
-          language={language}
           typedWelcome={confirmScreen.typedWelcome}
           welcomeDots={confirmScreen.welcomeDots}
           typedConfirm={confirmScreen.typedConfirm}
@@ -616,7 +550,7 @@ export default function Home() {
           display: showMainContent ? 'flex' : 'none',
           flexDirection: 'column',
           alignItems: 'flex-start',
-          gap: 'clamp(14px, 4vw, 24px)',
+          gap: 'clamp(20px, 5vw, 24px)',
           opacity: 1,
           zIndex: 10,
         }}
@@ -633,10 +567,10 @@ export default function Home() {
             style={{
               fontFamily: winFont,
               fontSize: 'clamp(1.2rem, 4vw, 1.6rem)',
-              color: activeSection === section ? 'var(--selection-fg, #000)' : 'rgba(255,255,255,0.6)',
+              color: activeSection === section ? 'var(--selection-fg, #000)' : 'var(--foreground)',
               backgroundColor: activeSection === section ? 'var(--selection-bg, #fff)' : 'transparent',
               cursor: 'pointer',
-              padding: '2px 4px',
+              padding: 'clamp(2px, 1vw, 6px) clamp(4px, 2vw, 8px)',
               border: 'none',
               animation: isBlinking ? 'blink 0.1s step-end infinite' : 'none',
             }}
@@ -838,6 +772,7 @@ export default function Home() {
               top: draggable.aboutPos.y || undefined,
               left: draggable.aboutPos.x || undefined,
               pointerEvents: 'auto',
+              overflow: 'hidden',
             }}
           >
             {/* Win95 Titlebar */}
@@ -896,7 +831,7 @@ export default function Home() {
             </div>
             <div style={{ padding: '14px 14px 18px', overflow: 'hidden', animation: 'fadeIn 0.4s ease-out' }}>
               <p style={{ wordBreak: 'break-word', margin: 0 }}>
-                <span style={{ backgroundColor: 'var(--nav-hover-fg, #000080)', color: 'var(--nav-hover-fg-contrast, #fff)', padding: '2px 6px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' }}>superself</span>{' '}
+                <span style={{ backgroundColor: 'var(--selection-bg, #fff)', color: 'var(--selection-fg, #000)', padding: '2px 6px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold' }}>superself</span>{' '}
                 {scrambled.aboutText || t.aboutText}
               </p>
             </div>
@@ -1091,7 +1026,7 @@ export default function Home() {
         }}
       >
         <span style={{ fontFamily: winFont, fontSize: 'clamp(0.6rem, 1.2vw, 0.75rem)', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>
-          {'{ superself '}<Spinner />{` 2026 - ${scrambled.copyright || t.allRightsReserved} }`}
+          {'{ superself '}<Spinner />{' 2026 }'}
         </span>
       </div>
 

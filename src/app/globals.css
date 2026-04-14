@@ -15,8 +15,8 @@
   --selection-fg: #000000;
   --social-hover-bg: #ffffff;
   --social-hover-fg: #000000;
-  --nav-hover-bg: #3a3a3a;
-  --nav-hover-fg: #ffffff;
+  --nav-hover-bg: #ffffff;
+  --nav-hover-fg: #000000;
   --nav-hover-fg-contrast: #000000;
 }
 
@@ -34,9 +34,9 @@
   --selection-fg: #0000FF;
   --social-hover-bg: #ffffff;
   --social-hover-fg: #0000FF;
-  --nav-hover-bg: #c0c0c0;
-  --nav-hover-fg: #000080;
-  --nav-hover-fg-contrast: #ffffff;
+  --nav-hover-bg: #ffffff;
+  --nav-hover-fg: #0000FF;
+  --nav-hover-fg-contrast: #0000FF;
 }
 
 @theme inline {

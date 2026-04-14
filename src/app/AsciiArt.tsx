@@ -735,7 +735,6 @@ const AsciiArt = forwardRef<AsciiArtRef, AsciiArtProps>(function AsciiArt({ colo
 
     rafId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(rafId);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isVisible, gridSize, width, height]);
 
   const sceneData = useMemo(() => {

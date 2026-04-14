@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { WIN_FONT, COLORS } from '../constants';
+import { WIN_FONT } from '../constants';
 
 interface ToastProps {
   message: string;

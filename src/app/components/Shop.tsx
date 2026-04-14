@@ -17,20 +17,6 @@ interface ShopProps {
   isDragging?: boolean;
 }
 
-// Animated dots component
-function AnimatedDots({ char = '.', width = '1.5em' }: { char?: string; width?: string }) {
-  const [dots, setDots] = useState('');
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setDots(prev => prev.length >= 3 ? '' : prev + char);
-    }, 400);
-    return () => clearInterval(interval);
-  }, [char]);
-
-  return <span style={{ display: 'inline-block', width, textAlign: 'left' }}>{dots}</span>;
-}
-
 export default function Shop({
   language,
   onClose,
@@ -63,7 +49,6 @@ export default function Shop({
   // Scramble effect state
   const prevLangRef = useRef<Language>(language);
   const [scrambledWhatsApp, setScrambledWhatsApp] = useState('');
-  const [scrambledMoreSoon, setScrambledMoreSoon] = useState('');
   const [scrambledProductNames, setScrambledProductNames] = useState<Record<number, string>>({});
   const [scrambledTitle, setScrambledTitle] = useState('');
 
@@ -92,7 +77,6 @@ export default function Shop({
       prevLangRef.current = language;
 
       const newWhatsApp = t.whatsappButton;
-      const newMoreSoon = t.moreSoon;
       const newTitle = t.shopTitle;
 
       let frame = 0;
@@ -123,11 +107,9 @@ export default function Shop({
       const interval = setInterval(() => {
         frame++;
         const whatsAppLocked = Math.floor((frame / maxFrames) * newWhatsApp.length);
-        const moreSoonLocked = Math.floor((frame / maxFrames) * newMoreSoon.length);
         const titleLocked = Math.floor((frame / maxFrames) * newTitle.length);
 
         setScrambledWhatsApp(scrambleText(newWhatsApp, whatsAppLocked));
-        setScrambledMoreSoon(scrambleText(newMoreSoon, moreSoonLocked));
         setScrambledTitle(scrambleText(newTitle, titleLocked));
 
         // Scramble product names
@@ -142,7 +124,6 @@ export default function Shop({
         if (frame >= maxFrames) {
           clearInterval(interval);
           setScrambledWhatsApp('');
-          setScrambledMoreSoon('');
           setScrambledTitle('');
           setScrambledProductNames({});
         }
@@ -151,7 +132,6 @@ export default function Shop({
       return () => {
         clearInterval(interval);
         setScrambledWhatsApp('');
-        setScrambledMoreSoon('');
         setScrambledTitle('');
         setScrambledProductNames({});
       };
@@ -197,7 +177,7 @@ export default function Shop({
   // Responsive sizes - compact spacing, larger elements
   const sizes = {
     // Window
-    windowWidth: isMobile ? '94vw' : 'clamp(480px, 38vw, 620px)',
+    windowWidth: isMobile ? '94vw' : 'clamp(480px, 50vw, 620px)',
     windowPadding: isMobile ? '10px' : '14px',
 
     // Title bar - match superself.exe popup style
@@ -226,9 +206,6 @@ export default function Shop({
     // WhatsApp button
     whatsAppIconSize: isMobile ? 22 : 26,
     whatsAppFont: isMobile ? '15px' : 'clamp(16px, 1.3vw, 19px)',
-
-    // Footer text
-    footerFontSize: isMobile ? '0.85rem' : 'clamp(0.95rem, 1vw, 1.1rem)',
   };
 
   return (
@@ -412,7 +389,7 @@ export default function Shop({
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  transform: `translateX(calc(-${currentIndex * 65}% + ${currentIndex * 50}px + 17.5%))`,
+                  transform: `translateX(calc(-${currentIndex * 58}% + ${currentIndex * 30}px + 21%))`,
                   transition: 'transform 0.35s cubic-bezier(0.4, 0, 0.2, 1)',
                 }}
               >
@@ -426,8 +403,8 @@ export default function Shop({
                       key={product.id}
                       onClick={() => goTo(index)}
                       style={{
-                        minWidth: '65%',
-                        marginLeft: index === 0 ? '0' : '-50px',
+                        minWidth: '58%',
+                        marginLeft: index === 0 ? '0' : '-30px',
                         display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'center',
@@ -629,20 +606,6 @@ export default function Shop({
             </Win95Button>
           </div>
 
-          {/* Footer text */}
-          <div
-            style={{
-              textAlign: 'center',
-              fontFamily: WIN_FONT,
-              fontSize: sizes.footerFontSize,
-              color: 'var(--win95-dark, #808080)',
-              letterSpacing: '0.1em',
-              marginTop: isMobile ? '4px' : '6px',
-              minHeight: '1.5em',
-            }}
-          >
-            [&nbsp; {scrambledMoreSoon || t.moreSoon}<AnimatedDots char="." width="1.5em" /> &nbsp;]
-          </div>
         </div>
       </div>
     </div>

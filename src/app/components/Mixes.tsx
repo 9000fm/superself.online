@@ -5,7 +5,6 @@ import { mixes } from '../data/mixes';
 import type { Language } from '../types';
 import { WIN_FONT, WIN95_STYLES, SCRAMBLE_CHARS } from '../constants';
 import { translations } from '../translations';
-import { shopTranslations } from '../data/products';
 
 interface MixesProps {
   language: Language;
@@ -28,12 +27,10 @@ export default function Mixes({
 }: MixesProps) {
   const [isMobile, setIsMobile] = useState(false);
   const t = translations[language];
-  const shopT = shopTranslations[language];
 
   // Scramble effect state
   const prevLangRef = useRef<Language>(language);
   const [scrambledTitle, setScrambledTitle] = useState('');
-  const [scrambledFooter, setScrambledFooter] = useState('');
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth < 768);
@@ -48,7 +45,6 @@ export default function Mixes({
       prevLangRef.current = language;
 
       const newTitle = t.mixesTitle;
-      const newFooter = shopT.moreSoon;
       const baseChars = SCRAMBLE_CHARS.base;
       const jpChars = SCRAMBLE_CHARS.japanese;
 
@@ -75,22 +71,19 @@ export default function Mixes({
       const interval = setInterval(() => {
         frame++;
         setScrambledTitle(scrambleText(newTitle, Math.floor((frame / maxFrames) * newTitle.length)));
-        setScrambledFooter(scrambleText(newFooter, Math.floor((frame / maxFrames) * newFooter.length)));
 
         if (frame >= maxFrames) {
           clearInterval(interval);
           setScrambledTitle('');
-          setScrambledFooter('');
         }
       }, 40);
 
       return () => {
         clearInterval(interval);
         setScrambledTitle('');
-        setScrambledFooter('');
       };
     }
-  }, [language, t, shopT]);
+  }, [language, t]);
 
   return (
     <div
@@ -210,17 +203,6 @@ export default function Mixes({
             </div>
           ))}
 
-          {/* Footer */}
-          <div style={{
-            textAlign: 'center',
-            fontFamily: WIN_FONT,
-            fontSize: isMobile ? '0.85rem' : '0.95rem',
-            color: 'var(--win95-dark, #808080)',
-            letterSpacing: '0.1em',
-            marginTop: '8px',
-          }}>
-            [ {scrambledFooter || shopT.moreSoon} ]
-          </div>
         </div>
       </div>
     </div>

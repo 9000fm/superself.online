@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Phase, Language } from '../types';
 import { SCRAMBLE_CHARS } from '../constants';
 
@@ -8,7 +8,6 @@ interface UseMainEntranceProps {
   skipMode: boolean;
   replayTrigger: number;
   onSkipModeComplete: () => void;
-  onShowWelcomePopup: () => void;
 }
 
 interface UseMainEntranceReturn {
@@ -28,7 +27,6 @@ export function useMainEntrance({
   skipMode,
   replayTrigger,
   onSkipModeComplete,
-  onShowWelcomePopup,
 }: UseMainEntranceProps): UseMainEntranceReturn {
   const scrambleChars = language === 'JP' ? SCRAMBLE_CHARS.japanese : SCRAMBLE_CHARS.base;
 
@@ -38,7 +36,6 @@ export function useMainEntrance({
   const [showTitleCursor, setShowTitleCursor] = useState(false);
   const [showFooter, setShowFooter] = useState(false);
   const [burgerVisible, setBurgerVisible] = useState(false);
-  const [isReplaying, setIsReplaying] = useState(false);
 
   const resetEntranceState = useCallback(() => {
     setShowFrame(false);
@@ -50,13 +47,7 @@ export function useMainEntrance({
   }, []);
 
   const handleReplayEntrance = useCallback(() => {
-    setIsReplaying(true);
     resetEntranceState();
-
-    // Wait briefly for elements to hide, then restart entrance
-    setTimeout(() => {
-      setIsReplaying(false);
-    }, 150);
   }, [resetEntranceState]);
 
   // Main content entrance sequence

@@ -2,7 +2,6 @@
 
 import React from 'react';
 import { ActiveWindow } from '../types';
-import { WIN_FONT } from '../constants';
 
 interface Win95PopupProps {
   title: string;

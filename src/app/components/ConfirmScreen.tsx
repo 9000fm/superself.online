@@ -1,12 +1,10 @@
 'use client';
 
 import React from 'react';
-import { Language, ConfirmOption } from '../types';
-import { translations, getDotChar } from '../translations';
+import { ConfirmOption } from '../types';
 import { WIN_FONT } from '../constants';
 
 interface ConfirmScreenProps {
-  language: Language;
   typedWelcome: string;
   welcomeDots: string;
   typedConfirm: string;
@@ -21,7 +19,6 @@ interface ConfirmScreenProps {
 }
 
 export function ConfirmScreen({
-  language,
   typedWelcome,
   welcomeDots,
   typedConfirm,

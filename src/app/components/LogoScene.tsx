@@ -1,7 +1,9 @@
 'use client';
+/* eslint-disable react-hooks/purity, react-hooks/immutability */
+// R3F components mutate typed arrays and use Math.random() at init — standard Three.js patterns
 
 import { useRef, useMemo, useEffect, useState, useCallback, Suspense } from 'react';
-import { Canvas, useFrame, useThree, useLoader } from '@react-three/fiber';
+import { Canvas, useFrame, useThree } from '@react-three/fiber';
 import { Float, Text } from '@react-three/drei';
 import { EffectComposer, Bloom, ChromaticAberration } from '@react-three/postprocessing';
 import * as THREE from 'three';
@@ -78,7 +80,6 @@ function ParticleLogo() {
     const orig = new Float32Array(points.length * 3);
     const vel = new Float32Array(points.length * 3);
     points.forEach((p, i) => {
-      // Start scattered, will animate to position
       const sx = p.x + (Math.random() - 0.5) * 8;
       const sy = p.y + (Math.random() - 0.5) * 8;
       const sz = p.z + (Math.random() - 0.5) * 4;
@@ -88,9 +89,6 @@ function ParticleLogo() {
       orig[i * 3] = p.x;
       orig[i * 3 + 1] = p.y;
       orig[i * 3 + 2] = p.z;
-      vel[i * 3] = 0;
-      vel[i * 3 + 1] = 0;
-      vel[i * 3 + 2] = 0;
     });
     return { positions: pos, originals: orig, velocities: vel };
   }, [points]);
@@ -111,7 +109,7 @@ function ParticleLogo() {
     for (let i = 0; i < points.length; i++) {
       const i3 = i * 3;
       const ox = originals[i3], oy = originals[i3 + 1], oz = originals[i3 + 2];
-      let cx = positions[i3], cy = positions[i3 + 1], cz = positions[i3 + 2];
+      const cx = positions[i3], cy = positions[i3 + 1], cz = positions[i3 + 2];
 
       // Mouse repulsion
       const dx = cx - mx;
@@ -302,9 +300,8 @@ function PortalLogo() {
     return () => window.removeEventListener('mousemove', handler);
   }, []);
 
-  useFrame((state) => {
+  useFrame(() => {
     if (!groupRef.current) return;
-    const t = state.clock.elapsedTime;
     // Parallax tilt based on mouse
     groupRef.current.rotation.y = mouseRef.current.x * 0.1;
     groupRef.current.rotation.x = mouseRef.current.y * 0.08;

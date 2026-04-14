@@ -13,7 +13,6 @@ interface ScrambledTexts {
   shop: string;
   mixes: string;
   message: string;
-  copyright: string;
   welcomeMsg: string;
   aboutText: string;
   shopMsg: string;
@@ -33,7 +32,6 @@ const emptyScrambled: ScrambledTexts = {
   shop: '',
   mixes: '',
   message: '',
-  copyright: '',
   welcomeMsg: '',
   aboutText: '',
   shopMsg: '',
@@ -74,7 +72,6 @@ export function useLanguageScramble({
         shop: t.shop,
         mixes: t.mixes,
         message: t.message,
-        copyright: t.allRightsReserved,
         welcomeMsg: t.welcomeMessage,
         aboutText: t.aboutText,
         shopMsg: t.shopMessage,
@@ -121,7 +118,6 @@ export function useLanguageScramble({
           shop: scrambleText(newTexts.shop, charLockFrames.shop),
           mixes: scrambleText(newTexts.mixes, charLockFrames.mixes),
           message: scrambleText(newTexts.message, charLockFrames.message),
-          copyright: scrambleText(newTexts.copyright, charLockFrames.copyright),
           welcomeMsg: scrambleText(newTexts.welcomeMsg, charLockFrames.welcomeMsg),
           aboutText: scrambleText(newTexts.aboutText, charLockFrames.aboutText),
           shopMsg: scrambleText(newTexts.shopMsg, charLockFrames.shopMsg),

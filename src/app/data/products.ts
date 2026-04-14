@@ -57,7 +57,6 @@ export const shopTranslations = {
   ES: {
     shopTitle: 'tienda.exe',
     buy: 'comprar',
-    moreSoon: 'más en camino',
     whatsappButton: 'Pedir por WhatsApp',
     currency: 'S/.',
     selectSize: 'Talla',
@@ -66,7 +65,6 @@ export const shopTranslations = {
   EN: {
     shopTitle: 'shop.exe',
     buy: 'buy',
-    moreSoon: 'stay tuned',
     whatsappButton: 'Order via WhatsApp',
     currency: 'S/.',
     selectSize: 'Size',
@@ -75,7 +73,6 @@ export const shopTranslations = {
   JP: {
     shopTitle: '店舗.exe',
     buy: '購入',
-    moreSoon: '近日追加',
     whatsappButton: 'WhatsAppで注文',
     currency: 'S/.',
     selectSize: 'サイズ',

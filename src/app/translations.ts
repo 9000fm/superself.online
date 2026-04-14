@@ -18,7 +18,6 @@ export type TranslationKeys = {
   shopMessage: string;
   copyright: string;
   message: string;
-  allRightsReserved: string;
   emailCopied: string;
   invalidEmail: string;
   subscribe: string;
@@ -52,13 +51,12 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: 'Se encontro una invitacion pendiente.',
     ok: 'Abrir',
     aboutTitle: 'acerca.txt',
-    aboutText: '(2023) es un sello y colectivo de música electrónica. Compartimos mixes, lanzamientos y recomendaciones selectas.',
+    aboutText: '(2023) es un sello y colectivo de musica electronica nacido en Lima. Compartimos mezclas selectas, lanzamientos propios y recomendaciones. Deja tu mail para enterarte primero.',
     close: 'Cerrar',
     shopTitle: 'tienda.exe',
     shopMessage: 'Tienda proximamente...',
     copyright: '{ superself • 2026 }',
     message: '1 mensaje nuevo',
-    allRightsReserved: 'todos los derechos reservados',
     emailCopied: 'email copiado',
     invalidEmail: 'ingresa un email valido',
     subscribe: 'suscribirse',
@@ -90,13 +88,12 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: 'Pending invitation found.',
     ok: 'Open',
     aboutTitle: 'about.txt',
-    aboutText: '(2023) is an electronic music label and collective. We share mixes, releases and curated recommendations.',
+    aboutText: '(2023) is an electronic music label and collective born in Lima. We share select mixes, original releases and recommendations. Leave your email to hear it first.',
     close: 'Close',
     shopTitle: 'shop.exe',
     shopMessage: 'Shop coming soon...',
     copyright: '{ superself • 2026 }',
     message: '1 new message',
-    allRightsReserved: 'all rights reserved',
     emailCopied: 'email copied',
     invalidEmail: 'enter a valid email',
     subscribe: 'subscribe',
@@ -128,13 +125,12 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: '保留中の招待があります。',
     ok: '開く',
     aboutTitle: '概要.txt',
-    aboutText: '(2023) は電子音楽レーベル＆コレクティブ。ミックス、リリース、厳選レコメンドを共有。',
+    aboutText: '(2023) はリマ発の電子音楽レーベル＆コレクティブ。厳選ミックス、自主リリース、レコメンドを共有。メールを登録して最新情報をチェック。',
     close: '閉じる',
     shopTitle: '店舗.exe',
     shopMessage: 'ショップは近日公開...',
     copyright: '{ superself • 2026 }',
     message: '1件の新着',
-    allRightsReserved: '全著作権所有',
     emailCopied: 'コピーしました',
     invalidEmail: '有効なメールを入力',
     subscribe: '登録',
