@@ -237,7 +237,7 @@ export default function Shop({
           fontFamily: WIN_FONT,
           color: 'var(--win95-text, #000)',
           width: sizes.windowWidth,
-          maxWidth: '94vw',
+          maxWidth: isMobile ? '94vw' : '70vw',
           position: position.x || position.y ? 'fixed' : 'relative',
           top: position.y || undefined,
           left: position.x || undefined,

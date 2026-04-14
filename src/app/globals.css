@@ -194,11 +194,13 @@ body {
 
 .nav-cli {
   transition: none;
+  color: var(--foreground);
+  background-color: transparent;
 }
 
 .nav-cli:hover {
-  background-color: var(--nav-hover-bg, #c0c0c0) !important;
-  color: var(--nav-hover-fg, #000080) !important;
+  background-color: var(--nav-hover-bg, #c0c0c0);
+  color: var(--nav-hover-fg, #000080);
 }
 
 /* Cursor inherits hover color */

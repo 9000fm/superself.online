@@ -567,8 +567,8 @@ export default function Home() {
             style={{
               fontFamily: winFont,
               fontSize: 'clamp(1.2rem, 4vw, 1.6rem)',
-              color: activeSection === section ? 'var(--selection-fg, #000)' : 'var(--foreground)',
-              backgroundColor: activeSection === section ? 'var(--selection-bg, #fff)' : 'transparent',
+              color: activeSection === section ? 'var(--selection-fg, #000)' : undefined,
+              backgroundColor: activeSection === section ? 'var(--selection-bg, #fff)' : undefined,
               cursor: 'pointer',
               padding: 'clamp(2px, 1vw, 6px) clamp(4px, 2vw, 8px)',
               border: 'none',
