@@ -829,21 +829,25 @@ export default function Home() {
                 </svg>
               </button>
             </div>
-            <div style={{ padding: '20px 22px 24px', overflow: 'hidden', animation: 'fadeIn 0.4s ease-out' }}>
-              {/* Header */}
-              <div style={{ marginBottom: '14px' }}>
-                <span style={{ backgroundColor: 'var(--selection-bg, #fff)', color: 'var(--selection-fg, #000)', padding: '3px 8px', fontFamily: 'Arial, sans-serif', fontWeight: 'bold', fontSize: '1.1em' }}>superself</span>
+            <div style={{ padding: '12px', overflow: 'hidden', animation: 'fadeIn 0.4s ease-out' }}>
+              {/* Sunken text area — Win95 inset panel */}
+              <div style={{
+                backgroundColor: 'var(--win95-highlight, #fff)',
+                border: '2px solid',
+                borderColor: 'var(--win95-dark, #808080) var(--win95-highlight, #dfdfdf) var(--win95-highlight, #dfdfdf) var(--win95-dark, #808080)',
+                padding: '16px 18px',
+              }}>
+                {/* Header */}
+                <div style={{ marginBottom: '12px' }}>
+                  <span style={{ backgroundColor: 'var(--selection-fg, #000080)', color: '#fff', padding: '2px 6px', fontWeight: 'bold', fontSize: '1.05em' }}>superself</span>
+                </div>
+                {/* Bio */}
+                <p style={{ margin: 0, wordBreak: 'break-word', color: '#000' }}>
+                  {scrambled.aboutBio || t.aboutBio}
+                </p>
               </div>
-              {/* Bio */}
-              <p style={{ margin: 0, wordBreak: 'break-word' }}>
-                {scrambled.aboutBio || t.aboutBio}
-              </p>
-              {/* Divider */}
-              <div style={{ textAlign: 'center', margin: '14px 0', color: 'var(--win95-dark, #808080)', letterSpacing: '0.2em', fontSize: '0.8em' }}>
-                ────────
-              </div>
-              {/* CTA */}
-              <p style={{ textAlign: 'center', margin: 0 }}>
+              {/* CTA — below the inset panel */}
+              <p style={{ textAlign: 'center', margin: '12px 0 0', fontSize: '0.9em' }}>
                 <span style={{ textDecoration: 'underline', cursor: 'default' }}>
                   {scrambled.aboutCta || t.aboutCta}
                 </span>

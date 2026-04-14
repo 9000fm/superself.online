@@ -197,7 +197,7 @@ body {
 }
 
 .nav-cli:hover {
-  background-color: var(--nav-hover-bg, #c0c0c0);
+  background-color: var(--nav-hover-bg, #c0c0c0) !important;
   color: var(--nav-hover-fg, #000080) !important;
 }
 
