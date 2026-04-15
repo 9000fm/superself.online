@@ -15,13 +15,29 @@ interface Particle {
 
 // ─── 2D Perspective Grid + Ball + Particles ───
 
-export default function GridScene() {
+interface GridSceneProps {
+  dissolving?: boolean;
+}
+
+export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const rafRef = useRef<number>(0);
   const scrollRef = useRef(0);
   const startTime = useRef(0);
   const particles = useRef<Particle[]>([]);
   const lastTime = useRef(0);
+  const dissolveStartRef = useRef<number>(0);
+  const prevDissolving = useRef(false);
+  const dissolvingRef = useRef(false);
+
+  // Sync dissolving prop to ref so the draw loop can read it
+  useEffect(() => {
+    const wasDissolving = dissolvingRef.current;
+    dissolvingRef.current = !!dissolvingProp;
+    if (dissolvingProp && !wasDissolving) {
+      dissolveStartRef.current = performance.now();
+    }
+  }, [dissolvingProp]);
 
   const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
   const depthEase = (t: number) => 1 - Math.pow(1 - t, 3);
@@ -41,12 +57,11 @@ export default function GridScene() {
       brightness: 0.3 + Math.random() * 0.7,
     });
 
-    // Pre-populate
-    for (let i = 0; i < 150; i++) {
-      const p = spawnParticle();
-      p.depth = Math.random(); // scatter across depth
-      particles.current.push(p);
-    }
+    // Start empty — particles spawn gradually from center
+    particles.current = [];
+    let spawnTimer = 0;
+    const MAX_PARTICLES = 150;
+    const SPAWN_RATE = 80; // ms between spawns (starts slow, fills up over ~12s)
 
     const draw = () => {
       const canvas = canvasRef.current;
@@ -69,6 +84,9 @@ export default function GridScene() {
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, w, h);
 
+      // Read dissolving state from ref (synced via useEffect)
+      const dissolving = dissolvingRef.current;
+
       // Read actual foreground color — grid lines always match text/icons/frame
       const theme = document.documentElement.dataset.theme || 'dark';
       let fgR = 255, fgG = 255, fgB = 255;
@@ -90,6 +108,7 @@ export default function GridScene() {
       // Inner rect
       const cx = w / 2;
       const cy = h / 2;
+
       const scale = 0.07;
       const iW = w * scale;
       const iH = h * scale;
@@ -104,7 +123,12 @@ export default function GridScene() {
       const stepSize = 1 / depthSteps;
       const scrollNorm = (scrollRef.current % stepSize) / stepSize;
 
-      const lineAlpha = 0.3;
+      // During dissolution: grid lines fade in at T+1.8s over 1.5s
+      let lineAlpha = 0.3;
+      if (dissolving) {
+        const dElapsed = (performance.now() - dissolveStartRef.current) / 1000;
+        lineAlpha = dElapsed < 1.8 ? 0 : Math.min(0.3, (dElapsed - 1.8) / 1.5 * 0.3);
+      }
       ctx.strokeStyle = `rgba(${fgR}, ${fgG}, ${fgB}, ${lineAlpha})`;
       ctx.lineWidth = 2;
 
@@ -146,18 +170,35 @@ export default function GridScene() {
         ctx.stroke();
       }
 
-      // ─── Glow halo behind the rectangle ───
-      const glowSize = Math.max(iW, iH) * 3;
-      const glowGrad = ctx.createRadialGradient(cx, cy, Math.min(iW, iH) * 0.3, cx, cy, glowSize);
-      glowGrad.addColorStop(0, `rgba(${fgR}, ${fgG}, ${fgB}, 0.12)`);
-      glowGrad.addColorStop(0.4, `rgba(${fgR}, ${fgG}, ${fgB}, 0.04)`);
-      glowGrad.addColorStop(1, `rgba(${fgR}, ${fgG}, ${fgB}, 0)`);
-      ctx.fillStyle = glowGrad;
-      ctx.fillRect(cx - glowSize, cy - glowSize, glowSize * 2, glowSize * 2);
+      // ─── Glow halo behind the rectangle (hidden during early dissolution) ───
+      let glowAlpha = 1;
+      if (dissolving) {
+        const dE2 = (performance.now() - dissolveStartRef.current) / 1000;
+        glowAlpha = dE2 < 1.8 ? 0 : Math.min(1, (dE2 - 1.8) / 1.5);
+      }
+      if (glowAlpha > 0) {
+        const glowSize = Math.max(iW, iH) * 3;
+        const glowGrad = ctx.createRadialGradient(cx, cy, Math.min(iW, iH) * 0.3, cx, cy, glowSize);
+        glowGrad.addColorStop(0, `rgba(${fgR}, ${fgG}, ${fgB}, ${0.12 * glowAlpha})`);
+        glowGrad.addColorStop(0.4, `rgba(${fgR}, ${fgG}, ${fgB}, ${0.04 * glowAlpha})`);
+        glowGrad.addColorStop(1, `rgba(${fgR}, ${fgG}, ${fgB}, 0)`);
+        ctx.fillStyle = glowGrad;
+        ctx.fillRect(cx - glowSize, cy - glowSize, glowSize * 2, glowSize * 2);
+      }
 
-      // ─── Inner rectangle ───
-      ctx.fillStyle = `rgba(${fgR}, ${fgG}, ${fgB}, 0.9)`;
-      ctx.fillRect(Math.floor(iL), Math.floor(iT), Math.ceil(iW) + 1, Math.ceil(iH) + 1);
+      // ─── Inner rectangle — smooth fade during dissolution ───
+      if (dissolving) {
+        const dissolveElapsed = (performance.now() - dissolveStartRef.current) / 1000;
+        // Rect fades in: starts at T+1.0s, fully solid by T+3.0s
+        const rectAlpha = dissolveElapsed < 1.0 ? 0 : Math.min(1, (dissolveElapsed - 1.0) / 2.0);
+        if (rectAlpha > 0) {
+          ctx.fillStyle = `rgba(${fgR}, ${fgG}, ${fgB}, ${rectAlpha.toFixed(2)})`;
+          ctx.fillRect(Math.floor(iL), Math.floor(iT), Math.ceil(iW) + 1, Math.ceil(iH) + 1);
+        }
+      } else {
+        ctx.fillStyle = `rgba(${fgR}, ${fgG}, ${fgB}, 0.9)`;
+        ctx.fillRect(Math.floor(iL), Math.floor(iT), Math.ceil(iW) + 1, Math.ceil(iH) + 1);
+      }
 
 
       // ─── Wall particles ───
@@ -210,8 +251,12 @@ export default function GridScene() {
           }
         }
 
-        // Maintain particle count
-        while (pts.length < 150) pts.push(spawnParticle());
+        // Gradually spawn particles from center (not all at once)
+        spawnTimer += dt * 1000;
+        if (pts.length < MAX_PARTICLES && spawnTimer >= SPAWN_RATE) {
+          spawnTimer = 0;
+          pts.push(spawnParticle()); // spawns at center (depth ~0)
+        }
 
         // Draw particles with trails
         for (const p of pts) {

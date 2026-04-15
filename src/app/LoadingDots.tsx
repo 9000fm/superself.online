@@ -15,15 +15,15 @@ export default function LoadingDots({ onComplete }: LoadingDotsProps) {
     onCompleteRef.current = onComplete;
   }, [onComplete]);
 
-  const totalBlocks = 22;
+  const totalBlocks = 14;
 
   useEffect(() => {
     if (completed) return;
 
     const getDelay = () => {
-      if (blocks < 3) return 120;
-      if (blocks < 15) return 50 + Math.random() * 40;
-      return 100 + Math.random() * 80;
+      if (blocks < 2) return 140;                         // first 2: steady
+      if (blocks < 10) return 70 + Math.random() * 50;    // middle: moderate
+      return 140 + Math.random() * 100;                    // last 4: dramatic slowdown
     };
 
     const timeout = setTimeout(() => {
@@ -48,9 +48,9 @@ export default function LoadingDots({ onComplete }: LoadingDotsProps) {
       <div style={{
         width: '100%',
         height: '12px',
-        backgroundColor: '#c0c0c0',
+        backgroundColor: 'var(--win95-bg, #c0c0c0)',
         border: '2px solid',
-        borderColor: '#808080 #dfdfdf #dfdfdf #808080',
+        borderColor: 'var(--win95-dark, #808080) var(--win95-highlight, #dfdfdf) var(--win95-highlight, #dfdfdf) var(--win95-dark, #808080)',
         padding: '2px',
         display: 'flex',
         gap: '2px',
@@ -61,7 +61,7 @@ export default function LoadingDots({ onComplete }: LoadingDotsProps) {
             key={i}
             style={{
               flex: 1,
-              backgroundColor: i < blocks ? 'var(--selection-fg, #000)' : 'transparent',
+              backgroundColor: i < blocks ? 'var(--bar-color, var(--foreground, #fff))' : 'transparent',
             }}
           />
         ))}

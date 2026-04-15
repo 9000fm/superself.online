@@ -7,6 +7,7 @@
   --frame-border: rgba(255,255,255,0.6);
   --text-muted: rgba(255,255,255,0.45);
   --text-primary: rgba(255,255,255,0.95);
+  --bar-color: #ffffff;
   --win95-bg: #3a3a3a;
   --win95-dark: #252525;
   --win95-title: linear-gradient(90deg, #1a1a1a, #333333);
@@ -54,6 +55,7 @@
   --frame-border: rgba(0,0,0,0.3);
   --text-muted: rgba(0,0,0,0.4);
   --text-primary: rgba(0,0,0,0.85);
+  --bar-color: #000000;
   --logo-filter: invert(1);
   --win95-bg: #c0c0c0;
   --win95-dark: #808080;
@@ -276,7 +278,7 @@ body {
   padding: 8px;
   border: 1px solid transparent;
   cursor: pointer;
-  transition: all 0.15s ease;
+  transition: background-color 0.4s ease, color 0.4s ease, border-color 0.4s ease;
   perspective: 200px;
 }
 
@@ -285,7 +287,8 @@ body {
   height: clamp(22px, 5vw, 32px);
 }
 
-.social-icon:hover {
+.social-icon:hover,
+.social-icon.icon-spinning {
   color: var(--social-hover-fg, #0000FF);
   background-color: var(--social-hover-bg, #fff);
   border-color: var(--social-hover-bg, #fff);
@@ -296,12 +299,16 @@ body {
   100% { transform: rotateY(360deg); }
 }
 
-/* Icon spin managed by JS (useIconSpin) — no CSS animation needed.
-   JS handles: still at rest → spin on hover → complete lap on leave. */
+/* Icon spin — CSS managed. Spin on hover, pause on leave. */
 .social-icon svg,
 .theme-toggle-btn span {
-  will-change: transform;
-  backface-visibility: hidden;
+  transition: transform 0.6s ease-out;
+}
+
+.social-icon:hover svg,
+.social-icon.icon-spinning svg,
+.theme-toggle-btn:hover span {
+  animation: spin3d 2.5s linear infinite;
 }
 
 /* ============================================

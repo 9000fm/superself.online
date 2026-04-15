@@ -16,7 +16,6 @@ interface Particle {
   vy: number;
   alpha: number;
   size: number;
-  growRate: number;
   delay: number;
   detached: boolean;
   r: number;
@@ -24,10 +23,6 @@ interface Particle {
   b: number;
 }
 
-/**
- * Full-screen particle overlay. PNG stays visible underneath and fades out.
- * Particles spawn from the logo position and float away. No canvas swap.
- */
 export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissolverProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
@@ -35,7 +30,6 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
   const animFrameRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
 
-  // Load image to sample pixel positions (just for alpha mask)
   useEffect(() => {
     if (!trigger || !logoRect) return;
     const img = new Image();
@@ -50,7 +44,6 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
       ctx.drawImage(img, 0, 0, w, h);
       const data = ctx.getImageData(0, 0, w, h);
 
-      // Get foreground color for particles
       const theme = document.documentElement.dataset.theme || 'dark';
       let tR = 255, tG = 255, tB = 255;
       if (theme === 'white') { tR = 0; tG = 0; tB = 0; }
@@ -62,29 +55,41 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
         }
       }
 
-      // Build particles
       const particles: Particle[] = [];
-      const blockSize = 2;
-      const maxDiag = w + h;
+      const blockSize = 1;
       const ox = Math.round(logoRect.x);
       const oy = Math.round(logoRect.y);
+      // Center rect bounds (matching GridScene scale=0.07)
+      const frameOff = 42;
+      const fw = window.innerWidth - frameOff * 2;
+      const fh = window.innerHeight - frameOff * 2;
+      const rW = fw * 0.07;
+      const rH = fh * 0.07;
+      const rCX = window.innerWidth / 2;
+      const rCY = window.innerHeight / 2;
 
       for (let y = 0; y < h; y += blockSize) {
         for (let x = 0; x < w; x += blockSize) {
           if (data.data[(y * w + x) * 4 + 3] < 30) continue;
-          // Random delay — Endgame snap style (not diagonal, purely random)
-          const delay = Math.random() * 1800;
+          const px = ox + x;
+          const py = oy + y;
+          // Each particle targets a RANDOM position inside the center rect
+          const targetX = rCX - rW/2 + Math.random() * rW;
+          const targetY = rCY - rH/2 + Math.random() * rH;
+          const dx = targetX - px;
+          const dy = targetY - py;
+          const distFromCenter = Math.sqrt((x - w/2) ** 2 + (y - h/2) ** 2);
+          const maxDist = Math.sqrt(w * w + h * h) / 2;
+          const delay = (1 - distFromCenter / maxDist) * 1400 + Math.random() * 400;
+          const speed = 0.3 + Math.random() * 0.8;
+          const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.3;
+
           particles.push({
-            x: ox + x, y: oy + y,
-            // Wind carries particles to the right + slight upward drift
-            vx: 0.4 + Math.random() * 1.2,
-            vy: (Math.random() - 0.6) * 0.6,
-            alpha: 1,
-            size: blockSize,
-            growRate: 0.002 + Math.random() * 0.004,
-            delay,
-            detached: false,
-            r: tR, g: tG, b: tB,
+            x: px, y: py,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed,
+            alpha: 1, size: blockSize, delay,
+            detached: false, r: tR, g: tG, b: tB,
           });
         }
       }
@@ -100,57 +105,46 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     const elapsed = performance.now() - startTimeRef.current;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const cw = canvas.width;
+    const ch = canvas.height;
+    ctx.clearRect(0, 0, cw, ch);
 
     let aliveCount = 0;
-    const preFade = 200;
 
     for (const p of particlesRef.current) {
-      const timeToDetach = p.delay - elapsed;
-
-      // Not yet detached — draw at origin (the logo stays visible)
-      if (timeToDetach > preFade) {
+      if (elapsed < p.delay) {
         ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},1)`;
-        ctx.fillRect(p.x, p.y, p.size, p.size);
+        ctx.fillRect(p.x, p.y, 1, 1);
         aliveCount++;
         continue;
       }
 
-      // Pre-detach shimmer
-      if (timeToDetach > 0) {
-        const fadeT = 1 - (timeToDetach / preFade);
-        const jx = (Math.random() - 0.5) * fadeT * 1.5;
-        const jy = (Math.random() - 0.5) * fadeT * 1.5;
-        ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${(1 - fadeT * 0.3).toFixed(2)})`;
-        ctx.fillRect(p.x + jx, p.y + jy, p.size, p.size);
-        aliveCount++;
-        continue;
-      }
-
-      // Detach
-      if (!p.detached) {
-        p.detached = true;
-        p.alpha = 0.7;
-      }
+      if (!p.detached) { p.detached = true; p.alpha = 1.0; }
 
       p.x += p.vx;
       p.y += p.vy;
-      p.vy -= 0.012;
-      p.alpha -= 0.013;
-      p.size += p.growRate;
+
+      // Fade when particle reaches the center rect area
+      const nearRect = Math.abs(p.x - cw/2) < cw * 0.04 && Math.abs(p.y - ch/2) < ch * 0.04;
+      p.alpha -= nearRect ? 0.03 : 0.004;
 
       if (p.alpha <= 0) continue;
       aliveCount++;
 
-      const s = Math.min(p.size, 5);
       ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${Math.max(0, p.alpha).toFixed(2)})`;
-      ctx.fillRect(p.x, p.y, s, s);
+      ctx.fillRect(p.x, p.y, 1, 1);
     }
 
-    if (aliveCount > 0 && elapsed < 4000) {
+    // Canvas fades out after 2.5s
+    if (elapsed > 2500) {
+      canvas.style.opacity = Math.max(0, 1 - (elapsed - 2500) / 1000).toFixed(2);
+    }
+
+    if ((aliveCount > 0 && elapsed < 3500) || elapsed < 2500) {
       animFrameRef.current = requestAnimationFrame(animate);
     } else {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      canvas.style.opacity = '0';
+      ctx.clearRect(0, 0, cw, ch);
       onComplete?.();
     }
   }, [onComplete]);
@@ -161,6 +155,7 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
     if (!canvas) return;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    canvas.style.opacity = '1';
     startTimeRef.current = performance.now();
     animFrameRef.current = requestAnimationFrame(animate);
     return () => { if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current); };
@@ -175,7 +170,7 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
         position: 'fixed',
         top: 0, left: 0,
         width: '100vw', height: '100vh',
-        zIndex: 100,
+        zIndex: 10,
         pointerEvents: 'none',
       }}
     />

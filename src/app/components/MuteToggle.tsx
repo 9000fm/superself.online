@@ -14,15 +14,8 @@ export function MuteToggle({ isMuted, onToggle }: MuteToggleProps) {
       className="social-icon"
       aria-label={isMuted ? 'Unmute' : 'Mute'}
       style={{
-        background: 'none',
-        border: '1px solid transparent',
         cursor: 'pointer',
         padding: '8px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        writingMode: 'horizontal-tb',
-        perspective: 'none',
       }}
     >
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style={{ display: 'block' }}>

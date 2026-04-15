@@ -116,6 +116,7 @@ export default function Home() {
     el.style.setProperty('--nav-hover-bg', p.hoverBg);
     el.style.setProperty('--nav-hover-fg', p.hoverFg);
     el.style.setProperty('--nav-hover-fg-contrast', p.hoverFg);
+    el.style.setProperty('--bar-color', p.bar);
     // Save to localStorage for hydration script
     localStorage.setItem('superself-color', p.bg);
     localStorage.setItem('superself-fg', p.fg);
@@ -123,7 +124,7 @@ export default function Home() {
 
   const clearPaletteOverrides = useCallback(() => {
     const el = document.documentElement;
-    const props = ['--user-color','--background','--foreground','--frame-border','--text-muted','--text-primary','--selection-bg','--selection-fg','--social-hover-bg','--social-hover-fg','--nav-hover-bg','--nav-hover-fg','--nav-hover-fg-contrast'];
+    const props = ['--user-color','--background','--foreground','--bar-color','--frame-border','--text-muted','--text-primary','--selection-bg','--selection-fg','--social-hover-bg','--social-hover-fg','--nav-hover-bg','--nav-hover-fg','--nav-hover-fg-contrast'];
     props.forEach(p => el.style.removeProperty(p));
   }, []);
 
@@ -186,6 +187,7 @@ export default function Home() {
   const handleDissolutionComplete = useCallback(() => {
     setDissolving(false);
     setEnterFadingOut(false);
+    setSkipMode(true); // fast entrance — frame already visible from dissolution
     setPhase('main');
   }, []);
 
@@ -261,6 +263,37 @@ export default function Home() {
     }
   }, [themeMode, paletteIndex, applyPalette, clearPaletteOverrides]);
 
+  // Icon spin: keep hover background until rotation completes
+  useEffect(() => {
+    function handleEnter(e: Event) {
+      (e.currentTarget as HTMLElement).classList.add('icon-spinning');
+    }
+    function handleLeave(e: Event) {
+      const el = e.currentTarget as HTMLElement;
+      const svg = el.querySelector('svg');
+      if (!svg) { el.classList.remove('icon-spinning'); return; }
+      function onIter() {
+        svg!.removeEventListener('animationiteration', onIter);
+        el.classList.remove('icon-spinning');
+      }
+      svg.addEventListener('animationiteration', onIter);
+      // Fallback: remove after one full cycle
+      setTimeout(() => { svg.removeEventListener('animationiteration', onIter); el.classList.remove('icon-spinning'); }, 2600);
+    }
+    function attach() {
+      document.querySelectorAll('.social-icon').forEach(el => {
+        el.removeEventListener('mouseenter', handleEnter);
+        el.removeEventListener('mouseleave', handleLeave);
+        el.addEventListener('mouseenter', handleEnter);
+        el.addEventListener('mouseleave', handleLeave);
+      });
+    }
+    attach();
+    const obs = new MutationObserver(attach);
+    obs.observe(document.body, { childList: true, subtree: true });
+    return () => { obs.disconnect(); document.querySelectorAll('.social-icon').forEach(el => { el.removeEventListener('mouseenter', handleEnter); el.removeEventListener('mouseleave', handleLeave); }); };
+  }, []);
+
   // Detect problematic aspect ratio (landscape on small screens)
   useEffect(() => {
     const checkAspectRatio = () => {
@@ -278,89 +311,6 @@ export default function Home() {
     return () => {
       window.removeEventListener('resize', checkAspectRatio);
       window.removeEventListener('orientationchange', checkAspectRatio);
-    };
-  }, []);
-
-  // Icon spin — JS-managed: still at rest, spin on hover, complete lap on leave
-  useEffect(() => {
-    // Skip on touch devices
-    if ('ontouchstart' in window && window.innerWidth < 1024) return;
-
-    interface SpinState { angle: number; prevAngle: number; hovering: boolean; lastTime: number }
-    const states = new WeakMap<Element, SpinState>();
-    const activeSet = new Set<Element>();
-    let rafId: number | null = null;
-
-    function tick(time: number) {
-      for (const el of activeSet) {
-        const s = states.get(el);
-        if (!s) { activeSet.delete(el); continue; }
-        if (!s.lastTime) s.lastTime = time;
-        const dt = time - s.lastTime;
-        s.lastTime = time;
-
-        s.prevAngle = s.angle;
-        s.angle = (s.angle + 360 * dt / 2800) % 360; // 2.8s per revolution
-        (el as HTMLElement).style.transform = `rotateY(${s.angle.toFixed(1)}deg)`;
-
-        // If not hovering and angle just wrapped past 360→0, stop
-        const wrapped = s.angle < s.prevAngle; // crossed the 360→0 boundary
-        if (!s.hovering && wrapped) {
-          s.angle = 0;
-          (el as HTMLElement).style.transform = '';
-          s.lastTime = 0;
-          activeSet.delete(el);
-        }
-      }
-      if (activeSet.size > 0) {
-        rafId = requestAnimationFrame(tick);
-      } else {
-        rafId = null;
-      }
-    }
-
-    function getTarget(container: Element): Element | null {
-      return container.querySelector('svg') || container.querySelector('span');
-    }
-
-    function handleEnter(e: Event) {
-      const target = getTarget(e.currentTarget as Element);
-      if (!target) return;
-      let s = states.get(target);
-      if (!s) { s = { angle: 0, prevAngle: 0, hovering: false, lastTime: 0 }; states.set(target, s); }
-      s.hovering = true;
-      s.lastTime = 0;
-      activeSet.add(target);
-      if (!rafId) rafId = requestAnimationFrame(tick);
-    }
-
-    function handleLeave(e: Event) {
-      const target = getTarget(e.currentTarget as Element);
-      if (!target) return;
-      const s = states.get(target);
-      if (s) s.hovering = false;
-    }
-
-    function attach() {
-      document.querySelectorAll('.social-icon, .theme-toggle-btn').forEach(el => {
-        el.removeEventListener('mouseenter', handleEnter);
-        el.removeEventListener('mouseleave', handleLeave);
-        el.addEventListener('mouseenter', handleEnter);
-        el.addEventListener('mouseleave', handleLeave);
-      });
-    }
-
-    attach();
-    const observer = new MutationObserver(attach);
-    observer.observe(document.body, { childList: true, subtree: true });
-
-    return () => {
-      observer.disconnect();
-      if (rafId) cancelAnimationFrame(rafId);
-      document.querySelectorAll('.social-icon, .theme-toggle-btn').forEach(el => {
-        el.removeEventListener('mouseenter', handleEnter);
-        el.removeEventListener('mouseleave', handleLeave);
-      });
     };
   }, []);
 
@@ -546,14 +496,18 @@ export default function Home() {
           left: frameInset,
           right: frameInset,
           bottom: frameInsetBottom,
-          display: showMainContent ? 'block' : 'none',
+          display: (showMainContent || dissolving) ? 'block' : 'none',
           pointerEvents: 'auto',
+          zIndex: 3,
           border: '1px solid var(--frame-border, rgba(255,255,255,0.6))',
-          opacity: entrance.showFrame ? 1 : 0,
-          transition: 'opacity 1.5s ease-in-out',
+          opacity: (dissolving || entrance.showFrame) ? 1 : 0,
+          borderColor: dissolving ? 'transparent' : 'var(--frame-border, rgba(255,255,255,0.6))',
+          transition: dissolving
+            ? 'opacity 0.1s, border-color 1s ease 2.5s'
+            : 'opacity 1.5s ease-in-out, border-color 0.5s ease',
         }}
       >
-        <GridScene />
+        <GridScene dissolving={dissolving} />
       </div>
 
       {/* Center click zone — only active in color mode, cycles palettes */}
@@ -596,7 +550,6 @@ export default function Home() {
             aspectRatio: '1',
             position: 'relative',
             opacity: showLogo && !dissolving ? 1 : 0,
-            transition: dissolving ? 'opacity 0.1s ease' : undefined,
           }}
         >
           <div
@@ -642,6 +595,7 @@ export default function Home() {
                 textAlign: 'center',
                 userSelect: 'none',
                 position: 'relative',
+                minWidth: 'clamp(140px, 30vw, 220px)',
                 animation: enterFadingOut
                   ? 'blink 0.1s step-end 5'
                   : 'fadeIn 0.5s ease-out',
@@ -679,7 +633,7 @@ export default function Home() {
           left: contentInset,
           display: showMainContent ? 'inline-block' : 'none',
           fontFamily: winFont,
-          fontSize: 'clamp(2.5rem, 7vw, 5rem)',
+          fontSize: 'clamp(3.2rem, 9vw, 5rem)',
           color: 'var(--foreground)',
           backgroundColor: 'transparent',
           visibility: entrance.showTitlePrompt ? 'visible' : 'hidden',
@@ -805,7 +759,7 @@ export default function Home() {
           display: showMainContent ? 'flex' : 'none',
           flexDirection: 'column',
           alignItems: 'flex-start',
-          gap: 'clamp(20px, 5vw, 24px)',
+          gap: 'clamp(24px, 6vw, 28px)',
           opacity: 1,
           zIndex: 10,
         }}
@@ -831,7 +785,7 @@ export default function Home() {
             }}
             style={{
               fontFamily: winFont,
-              fontSize: 'clamp(1.2rem, 4vw, 1.6rem)',
+              fontSize: 'clamp(1.3rem, 4.5vw, 1.6rem)',
               color: activeSection === section ? 'var(--selection-fg, #000)' : undefined,
               backgroundColor: activeSection === section ? 'var(--selection-bg, #fff)' : undefined,
               cursor: 'pointer',
