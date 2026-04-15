@@ -163,6 +163,7 @@ export default function Home() {
   const enterScreen = useEnterScreen({
     phase,
     onEnter: () => {
+      if (enterFadingOut || dissolving) return; // guard against multi-tap
       audio.init();
       audio.playWoosh();
       // Step 1: wait for current scramble to finish resolving (~800ms)

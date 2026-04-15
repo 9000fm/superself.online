@@ -102,12 +102,34 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
     ctx.clearRect(0, 0, canvas.width, canvas.height);
 
     let aliveCount = 0;
-    for (const p of particlesRef.current) {
-      if (elapsed < p.delay) continue; // not yet
+    const preFade = 200;
 
+    for (const p of particlesRef.current) {
+      const timeToDetach = p.delay - elapsed;
+
+      // Not yet detached — draw at origin (the logo stays visible)
+      if (timeToDetach > preFade) {
+        ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},1)`;
+        ctx.fillRect(p.x, p.y, p.size, p.size);
+        aliveCount++;
+        continue;
+      }
+
+      // Pre-detach shimmer
+      if (timeToDetach > 0) {
+        const fadeT = 1 - (timeToDetach / preFade);
+        const jx = (Math.random() - 0.5) * fadeT * 1.5;
+        const jy = (Math.random() - 0.5) * fadeT * 1.5;
+        ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${(1 - fadeT * 0.3).toFixed(2)})`;
+        ctx.fillRect(p.x + jx, p.y + jy, p.size, p.size);
+        aliveCount++;
+        continue;
+      }
+
+      // Detach
       if (!p.detached) {
         p.detached = true;
-        p.alpha = 1;
+        p.alpha = 0.7;
       }
 
       p.x += p.vx;
