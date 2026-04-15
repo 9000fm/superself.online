@@ -72,16 +72,17 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
       for (let y = 0; y < h; y += blockSize) {
         for (let x = 0; x < w; x += blockSize) {
           if (data.data[(y * w + x) * 4 + 3] < 30) continue;
-          const diagDist = (x + y) / maxDiag;
-          const jitter = (Math.random() - 0.5) * 0.12;
+          // Random delay — Endgame snap style (not diagonal, purely random)
+          const delay = Math.random() * 1800;
           particles.push({
             x: ox + x, y: oy + y,
-            vx: (Math.random() - 0.5) * 0.5,
-            vy: -(0.3 + Math.random() * 1.0),
+            // Wind carries particles to the right + slight upward drift
+            vx: 0.4 + Math.random() * 1.2,
+            vy: (Math.random() - 0.6) * 0.6,
             alpha: 1,
             size: blockSize,
-            growRate: 0.003 + Math.random() * 0.005,
-            delay: Math.max(0, diagDist + jitter) * 1600,
+            growRate: 0.002 + Math.random() * 0.004,
+            delay,
             detached: false,
             r: tR, g: tG, b: tB,
           });
