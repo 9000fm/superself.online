@@ -29,6 +29,7 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
   const particlesRef = useRef<Particle[]>([]);
   const animFrameRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
+  const burstDoneRef = useRef(false);
 
   useEffect(() => {
     if (!trigger || !logoRect) return;
@@ -80,7 +81,9 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
           const dy = targetY - py;
           const distFromCenter = Math.sqrt((x - w/2) ** 2 + (y - h/2) ** 2);
           const maxDist = Math.sqrt(w * w + h * h) / 2;
-          const delay = (1 - distFromCenter / maxDist) * 1400 + Math.random() * 400;
+          // Edges detach FIRST (delay ~0), center last (~1400ms). No random padding on fastest.
+          const normalized = 1 - distFromCenter / maxDist; // 0=edge, 1=center
+          const delay = normalized * 1400 + (normalized > 0.1 ? Math.random() * 200 : 0);
           const speed = 0.3 + Math.random() * 0.8;
           const angle = Math.atan2(dy, dx) + (Math.random() - 0.5) * 0.3;
 
@@ -124,8 +127,8 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
       p.x += p.vx;
       p.y += p.vy;
 
-      // Fade when particle reaches the center rect area
-      const nearRect = Math.abs(p.x - cw/2) < cw * 0.04 && Math.abs(p.y - ch/2) < ch * 0.04;
+      // Fade when particle reaches the center rect area (matching GridScene proportions)
+      const nearRect = Math.abs(p.x - cw/2) < (cw - 84) * 0.04 && Math.abs(p.y - ch/2) < (ch - 84) * 0.04;
       p.alpha -= nearRect ? 0.03 : 0.004;
 
       if (p.alpha <= 0) continue;
@@ -133,6 +136,27 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
 
       ctx.fillStyle = `rgba(${p.r},${p.g},${p.b},${Math.max(0, p.alpha).toFixed(2)})`;
       ctx.fillRect(p.x, p.y, 1, 1);
+    }
+
+    // Burst: when most logo particles have faded, explode outward from center
+    const detachedCount = particlesRef.current.filter(p => p.detached).length;
+    const fadedCount = particlesRef.current.filter(p => p.detached && p.alpha <= 0).length;
+    if (!burstDoneRef.current && elapsed > 1800 && fadedCount > detachedCount * 0.7) {
+      burstDoneRef.current = true;
+      const r = particlesRef.current[0]?.r ?? 255;
+      const g = particlesRef.current[0]?.g ?? 255;
+      const b = particlesRef.current[0]?.b ?? 255;
+      for (let i = 0; i < 25; i++) {
+        const angle = (i / 25) * Math.PI * 2 + (Math.random() - 0.5) * 0.4;
+        const speed = 1.2 + Math.random() * 1.8;
+        particlesRef.current.push({
+          x: cw / 2, y: ch / 2,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          alpha: 0.9, size: 1, delay: 0,
+          detached: true, r, g, b,
+        });
+      }
     }
 
     // Canvas fades out after 2.5s
@@ -157,6 +181,7 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
     canvas.height = window.innerHeight;
     canvas.style.opacity = '1';
     startTimeRef.current = performance.now();
+    burstDoneRef.current = false;
     animFrameRef.current = requestAnimationFrame(animate);
     return () => { if (animFrameRef.current) cancelAnimationFrame(animFrameRef.current); };
   }, [trigger, ready, animate]);
