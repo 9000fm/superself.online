@@ -4,6 +4,9 @@
   --background: #000000;
   --foreground: #ffffff;
   --accent: #0000FF;
+  --frame-border: rgba(255,255,255,0.6);
+  --text-muted: rgba(255,255,255,0.45);
+  --text-primary: rgba(255,255,255,0.95);
   --win95-bg: #3a3a3a;
   --win95-dark: #252525;
   --win95-title: linear-gradient(90deg, #1a1a1a, #333333);
@@ -20,9 +23,13 @@
   --nav-hover-fg-contrast: #000000;
 }
 
-[data-theme="light"] {
-  --background: #0000FF;
-  --accent: #0000FF;
+/* Color theme — user-customizable background via --user-color */
+[data-theme="color"] {
+  --background: var(--user-color, #0000FF);
+  --accent: var(--user-color, #0000FF);
+  --frame-border: rgba(255,255,255,0.6);
+  --text-muted: rgba(255,255,255,0.4);
+  --text-primary: rgba(255,255,255,0.95);
   --win95-bg: #c0c0c0;
   --win95-dark: #808080;
   --win95-title: linear-gradient(90deg, #000080, #1084d0);
@@ -31,12 +38,37 @@
   --win95-text: #000000;
   --win95-disabled: #a0a0a0;
   --selection-bg: #ffffff;
-  --selection-fg: #0000FF;
+  --selection-fg: var(--user-color, #0000FF);
   --social-hover-bg: #ffffff;
-  --social-hover-fg: #0000FF;
+  --social-hover-fg: var(--user-color, #0000FF);
   --nav-hover-bg: #ffffff;
-  --nav-hover-fg: #0000FF;
-  --nav-hover-fg-contrast: #0000FF;
+  --nav-hover-fg: var(--user-color, #0000FF);
+  --nav-hover-fg-contrast: var(--user-color, #0000FF);
+}
+
+/* White theme — minimal, clean */
+[data-theme="white"] {
+  --background: #ffffff;
+  --foreground: #000000;
+  --accent: #000000;
+  --frame-border: rgba(0,0,0,0.3);
+  --text-muted: rgba(0,0,0,0.4);
+  --text-primary: rgba(0,0,0,0.85);
+  --logo-filter: invert(1);
+  --win95-bg: #c0c0c0;
+  --win95-dark: #808080;
+  --win95-title: linear-gradient(90deg, #000080, #1084d0);
+  --win95-highlight: #dfdfdf;
+  --win95-shadow: #0a0a0a;
+  --win95-text: #000000;
+  --win95-disabled: #a0a0a0;
+  --selection-bg: #e0e0e0;
+  --selection-fg: #000000;
+  --social-hover-bg: #e0e0e0;
+  --social-hover-fg: #000000;
+  --nav-hover-bg: #e8e8e8;
+  --nav-hover-fg: #000000;
+  --nav-hover-fg-contrast: #000000;
 }
 
 @theme inline {
@@ -237,7 +269,7 @@ body {
    ============================================ */
 
 .social-icon {
-  color: rgba(255,255,255,0.6);
+  color: var(--text-muted, rgba(255,255,255,0.4));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -264,9 +296,12 @@ body {
   100% { transform: rotateY(360deg); }
 }
 
-.social-icon:hover svg,
-.social-icon:active svg {
-  animation: spin3d 1.2s ease-in-out 1;
+/* Icon spin managed by JS (useIconSpin) — no CSS animation needed.
+   JS handles: still at rest → spin on hover → complete lap on leave. */
+.social-icon svg,
+.theme-toggle-btn span {
+  will-change: transform;
+  backface-visibility: hidden;
 }
 
 /* ============================================
@@ -288,13 +323,9 @@ button:hover .nav-cursor {
    ============================================ */
 
 .theme-toggle-btn:hover {
-  color: #fff !important;
+  color: var(--foreground) !important;
   background-color: transparent !important;
   border-color: transparent !important;
-}
-
-.theme-toggle-btn:hover span {
-  animation: spin3d 2s ease-in-out infinite;
 }
 
 /* ============================================

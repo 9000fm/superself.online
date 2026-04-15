@@ -69,6 +69,21 @@ export default function GridScene() {
       ctx.imageSmoothingEnabled = false;
       ctx.clearRect(0, 0, w, h);
 
+      // Read actual foreground color — grid lines always match text/icons/frame
+      const theme = document.documentElement.dataset.theme || 'dark';
+      let fgR = 255, fgG = 255, fgB = 255;
+      if (theme === 'white') {
+        fgR = 0; fgG = 0; fgB = 0;
+      } else if (theme === 'color') {
+        const hex = document.documentElement.style.getPropertyValue('--foreground').trim();
+        if (hex && hex.startsWith('#')) {
+          const h = hex.replace('#', '');
+          fgR = parseInt(h.slice(0, 2), 16) || 0;
+          fgG = parseInt(h.slice(2, 4), 16) || 0;
+          fgB = parseInt(h.slice(4, 6), 16) || 0;
+        }
+      }
+
       // Outer rect
       const oL = 0, oT = 0, oR = w, oB = h;
 
@@ -89,7 +104,8 @@ export default function GridScene() {
       const stepSize = 1 / depthSteps;
       const scrollNorm = (scrollRef.current % stepSize) / stepSize;
 
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+      const lineAlpha = 0.3;
+      ctx.strokeStyle = `rgba(${fgR}, ${fgG}, ${fgB}, ${lineAlpha})`;
       ctx.lineWidth = 2;
 
       // ─── Corner diagonals ───
@@ -133,14 +149,14 @@ export default function GridScene() {
       // ─── Glow halo behind the rectangle ───
       const glowSize = Math.max(iW, iH) * 3;
       const glowGrad = ctx.createRadialGradient(cx, cy, Math.min(iW, iH) * 0.3, cx, cy, glowSize);
-      glowGrad.addColorStop(0, 'rgba(255, 255, 255, 0.12)');
-      glowGrad.addColorStop(0.4, 'rgba(255, 255, 255, 0.04)');
-      glowGrad.addColorStop(1, 'rgba(255, 255, 255, 0)');
+      glowGrad.addColorStop(0, `rgba(${fgR}, ${fgG}, ${fgB}, 0.12)`);
+      glowGrad.addColorStop(0.4, `rgba(${fgR}, ${fgG}, ${fgB}, 0.04)`);
+      glowGrad.addColorStop(1, `rgba(${fgR}, ${fgG}, ${fgB}, 0)`);
       ctx.fillStyle = glowGrad;
       ctx.fillRect(cx - glowSize, cy - glowSize, glowSize * 2, glowSize * 2);
 
       // ─── Inner rectangle ───
-      ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+      ctx.fillStyle = `rgba(${fgR}, ${fgG}, ${fgB}, 0.9)`;
       ctx.fillRect(Math.floor(iL), Math.floor(iT), Math.ceil(iW) + 1, Math.ceil(iH) + 1);
 
 
@@ -212,7 +228,7 @@ export default function GridScene() {
               const [x1, y1] = projectParticle(p.wall, p.pos, p.trail[t]);
               const [x2, y2] = projectParticle(p.wall, p.pos, p.trail[t + 1]);
               const trailSize = size * (0.3 + trailProgress * 0.7);
-              ctx.strokeStyle = `rgba(255, 255, 255, ${trailAlpha})`;
+              ctx.strokeStyle = `rgba(${fgR}, ${fgG}, ${fgB}, ${trailAlpha})`;
               ctx.lineWidth = trailSize * 0.6;
               ctx.lineCap = 'round';
               ctx.beginPath();
@@ -225,7 +241,7 @@ export default function GridScene() {
           // Particle head
           const [px, py] = projectParticle(p.wall, p.pos, p.depth);
           ctx.globalAlpha = alpha;
-          ctx.fillStyle = '#fff';
+          ctx.fillStyle = `rgb(${fgR}, ${fgG}, ${fgB})`;
           ctx.beginPath();
           ctx.arc(px, py, size * 0.4, 0, Math.PI * 2);
           ctx.fill();

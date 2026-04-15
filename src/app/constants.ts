@@ -120,13 +120,70 @@ export const WIN95_STYLES = {
 // Font stack for terminal/DOS style
 export const WIN_FONT = 'var(--font-terminal), VT323, Fixedsys, Terminal, Consolas, monospace';
 
-// Frame insets with safe-area support
+// Frame insets with safe-area support — tight like Yamada
 export const FRAME_INSETS = {
-  frame: 'max(clamp(30px, 5vw, 60px), env(safe-area-inset-top, 0px))',
-  frameBottom: 'max(clamp(30px, 5vw, 60px), env(safe-area-inset-bottom, 0px))',
-  content: 'max(clamp(45px, 7vw, 80px), env(safe-area-inset-top, 0px))',
-  contentBottom: 'max(clamp(45px, 7vw, 80px), env(safe-area-inset-bottom, 0px))',
+  frame: 'max(clamp(16px, 2.5vw, 32px), env(safe-area-inset-top, 0px))',
+  frameBottom: 'max(clamp(16px, 2.5vw, 32px), env(safe-area-inset-bottom, 0px))',
+  content: 'max(clamp(28px, 4vw, 48px), env(safe-area-inset-top, 0px))',
+  contentBottom: 'max(clamp(28px, 4vw, 48px), env(safe-area-inset-bottom, 0px))',
 } as const;
+
+// Multilingual "ENTER" translations for the enter screen
+export const ENTER_TRANSLATIONS = [
+  // Fixed order (first 7 — always shown in this sequence)
+  'ENTER',        // EN
+  'ENTRAR',       // ES
+  '入る',          // JP
+  '进入',          // ZH
+  'EINTRETEN',    // DE
+  'ВОЙТИ',        // RU
+  'ENTRER',       // FR
+  // Random pool (shuffled after the fixed 7)
+  '들어가기',       // KO
+  'प्रवेश',         // HI
+  'ΕΙΣΟΔΟΣ',      // EL
+  'INGRESSO',     // IT
+  'MASUK',        // ID
+  'INTRARE',      // RO
+  'WEJŚĆ',        // PL
+  'INGÅNG',       // SV
+  'GİRMEK',       // TR
+  '入口',          // ZH-TW
+  'KIRISH',       // UZ
+  'DAXIL',        // AZ
+] as const;
+
+// How many translations are in fixed order (the rest get shuffled)
+export const ENTER_FIXED_COUNT = 7;
+
+// Enter screen timing
+export const ENTER_TIMING = {
+  holdDuration: 4000,      // ms to hold resolved word (~4 seconds)
+  initialDelay: 600,       // ms before first word appears
+} as const;
+
+// Color theme palettes — curated aesthetic combos
+// Each palette defines bg + foreground + frame/lines + accents
+export const COLOR_PALETTES = [
+  { id: 'blue',   bg: '#0000FF', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#0000FF', hoverBg: '#ffffff', hoverFg: '#0000FF' },
+  { id: 'purple', bg: '#4B0082', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#4B0082', hoverBg: '#ffffff', hoverFg: '#4B0082' },
+  { id: 'red',    bg: '#8B0000', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#8B0000', hoverBg: '#ffffff', hoverFg: '#8B0000' },
+  { id: 'green',  bg: '#004D00', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#004D00', hoverBg: '#ffffff', hoverFg: '#004D00' },
+  { id: 'yellow', bg: '#C8A800', fg: '#000000', frame: 'rgba(0,0,0,0.5)',       muted: 'rgba(0,0,0,0.35)',      primary: 'rgba(0,0,0,0.85)',        selBg: '#000000', selFg: '#C8A800', hoverBg: '#000000', hoverFg: '#C8A800' },
+  { id: 'orange', bg: '#CC4400', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#CC4400', hoverBg: '#ffffff', hoverFg: '#CC4400' },
+  { id: 'teal',   bg: '#005F5F', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#005F5F', hoverBg: '#ffffff', hoverFg: '#005F5F' },
+  { id: 'pink',   bg: '#8B005A', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#8B005A', hoverBg: '#ffffff', hoverFg: '#8B005A' },
+  { id: 'acid',   bg: '#00CC00', fg: '#000000', frame: 'rgba(0,0,0,0.5)',       muted: 'rgba(0,0,0,0.35)',      primary: 'rgba(0,0,0,0.85)',        selBg: '#000000', selFg: '#00CC00', hoverBg: '#000000', hoverFg: '#00CC00' },
+  { id: 'coral',  bg: '#FF4444', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#FF4444', hoverBg: '#ffffff', hoverFg: '#FF4444' },
+  { id: 'midnight', bg: '#0D0D2B', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#0D0D2B', hoverBg: '#ffffff', hoverFg: '#6666FF' },
+  { id: 'rust',   bg: '#8B4513', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#8B4513', hoverBg: '#ffffff', hoverFg: '#8B4513' },
+  { id: 'lavender', bg: '#6644AA', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#6644AA', hoverBg: '#ffffff', hoverFg: '#6644AA' },
+  { id: 'olive',  bg: '#556B2F', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#556B2F', hoverBg: '#ffffff', hoverFg: '#556B2F' },
+  { id: 'cyan',   bg: '#008B8B', fg: '#ffffff', frame: 'rgba(255,255,255,0.6)', muted: 'rgba(255,255,255,0.4)', primary: 'rgba(255,255,255,0.95)', selBg: '#ffffff', selFg: '#008B8B', hoverBg: '#ffffff', hoverFg: '#008B8B' },
+  { id: 'charcoal', bg: '#2D2D2D', fg: '#4488FF', frame: 'rgba(68,136,255,0.5)', muted: 'rgba(68,136,255,0.35)', primary: 'rgba(68,136,255,0.9)', selBg: '#4488FF', selFg: '#2D2D2D', hoverBg: '#4488FF', hoverFg: '#2D2D2D' },
+  { id: 'gold',   bg: '#AA8800', fg: '#000000', frame: 'rgba(0,0,0,0.5)',       muted: 'rgba(0,0,0,0.35)',      primary: 'rgba(0,0,0,0.85)',        selBg: '#000000', selFg: '#AA8800', hoverBg: '#000000', hoverFg: '#AA8800' },
+  { id: 'blood',  bg: '#440000', fg: '#FF4444', frame: 'rgba(255,68,68,0.5)',   muted: 'rgba(255,68,68,0.35)',  primary: 'rgba(255,68,68,0.9)',     selBg: '#FF4444', selFg: '#440000', hoverBg: '#FF4444', hoverFg: '#440000' },
+] as const;
 
 // Spinner animation frames
 export const SPINNER_CHARS = ['|', '/', '-', '\\'] as const;

@@ -12,11 +12,13 @@ import { Phase, Language, ActiveSection, ActiveWindow, WelcomeStep } from './typ
 import { translations } from './translations';
 
 // Constants
-import { CONTACT, WIN_FONT, FRAME_INSETS, WIN95_STYLES } from './constants';
+import { CONTACT, WIN_FONT, FRAME_INSETS, WIN95_STYLES, COLOR_PALETTES } from './constants';
 
 // Hooks
 import {
-  useConfirmScreen,
+  useEnterScreen,
+  useAudio,
+  usePopupTransition,
   useShutdownSequence,
   useMainEntrance,
   useLanguageScramble,
@@ -26,10 +28,11 @@ import {
 // Components
 import {
   Win95Popup,
-  ConfirmScreen,
   ErrorScreen,
   ShutdownScreen,
   Shop,
+  MuteToggle,
+  LogoDissolver,
 } from './components';
 import Mixes from './components/Mixes';
 
@@ -84,19 +87,67 @@ export default function Home() {
   const [replayTrigger, setReplayTrigger] = useState(0);
   const [rebootCount, setRebootCount] = useState(0);
 
+  // Logo dissolution
+  const [dissolving, setDissolving] = useState(false);
+  const [enterFadingOut, setEnterFadingOut] = useState(false);
+
   // Landscape warning
   const [showLandscapeWarning, setShowLandscapeWarning] = useState(false);
 
-  // Theme state — init from DOM (set by layout hydration script)
-  const [theme, setTheme] = useState<'light' | 'dark'>('dark');
+  // Theme state — cycles: dark → color palettes → white → dark
+  type ThemeMode = 'dark' | 'color' | 'white';
+  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
+  const [paletteIndex, setPaletteIndex] = useState(0);
+
+  // Apply color palette CSS variables
+  const applyPalette = useCallback((idx: number) => {
+    const p = COLOR_PALETTES[idx];
+    const el = document.documentElement;
+    el.style.setProperty('--user-color', p.bg);
+    el.style.setProperty('--background', p.bg);
+    el.style.setProperty('--foreground', p.fg);
+    el.style.setProperty('--frame-border', p.frame);
+    el.style.setProperty('--text-muted', p.muted);
+    el.style.setProperty('--text-primary', p.primary);
+    el.style.setProperty('--selection-bg', p.selBg);
+    el.style.setProperty('--selection-fg', p.selFg);
+    el.style.setProperty('--social-hover-bg', p.selBg);
+    el.style.setProperty('--social-hover-fg', p.selFg);
+    el.style.setProperty('--nav-hover-bg', p.hoverBg);
+    el.style.setProperty('--nav-hover-fg', p.hoverFg);
+    el.style.setProperty('--nav-hover-fg-contrast', p.hoverFg);
+    // Save to localStorage for hydration script
+    localStorage.setItem('superself-color', p.bg);
+    localStorage.setItem('superself-fg', p.fg);
+  }, []);
+
+  const clearPaletteOverrides = useCallback(() => {
+    const el = document.documentElement;
+    const props = ['--user-color','--background','--foreground','--frame-border','--text-muted','--text-primary','--selection-bg','--selection-fg','--social-hover-bg','--social-hover-fg','--nav-hover-bg','--nav-hover-fg','--nav-hover-fg-contrast'];
+    props.forEach(p => el.style.removeProperty(p));
+  }, []);
 
   useEffect(() => {
-    const stored = document.documentElement.dataset.theme;
-    if (stored === 'light') setTheme('light');
-  }, []);
+    let stored = document.documentElement.dataset.theme as string | undefined;
+    if (stored === 'light') { stored = 'color'; localStorage.setItem('theme', 'color'); document.documentElement.dataset.theme = 'color'; }
+    const savedIdx = parseInt(localStorage.getItem('superself-palette') || '0', 10);
+    if (stored === 'color' || stored === 'white') setThemeMode(stored as ThemeMode);
+    if (stored === 'color') {
+      const idx = isNaN(savedIdx) ? 0 : savedIdx % COLOR_PALETTES.length;
+      setPaletteIndex(idx);
+      applyPalette(idx);
+    }
+  }, [applyPalette]);
 
   // Ref for ASCII art
   const asciiRef = useRef<AsciiArtRef>(null);
+
+  // Ref for logo element (to capture bounding rect for dissolution)
+  const logoRef = useRef<HTMLDivElement>(null);
+  const [logoRect, setLogoRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+
+  // Nav button refs for popup transition
+  const navRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
   // Style constants
   const winFont = WIN_FONT;
@@ -107,12 +158,35 @@ export default function Home() {
   const contentInsetBottom = FRAME_INSETS.contentBottom;
 
   // Custom hooks
-  const confirmScreen = useConfirmScreen({
+  const audio = useAudio();
+
+  const enterScreen = useEnterScreen({
     phase,
-    language,
-    onSelectYes: () => setPhase('main'),
-    onSelectNo: () => shutdown.startShutdown(),
+    onEnter: () => {
+      audio.init();
+      audio.playWoosh();
+      // Step 1: wait for current scramble to finish resolving (~800ms)
+      setTimeout(() => {
+        setEnterFadingOut(true);
+        // Step 2: after flicker, capture logo rect and dissolve
+        setTimeout(() => {
+          // Capture logo position before dissolving
+          if (logoRef.current) {
+            const rect = logoRef.current.getBoundingClientRect();
+            setLogoRect({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
+          }
+          setDissolving(true);
+          setTimeout(() => audio.startMusic(), 400);
+        }, 600);
+      }, 800);
+    },
   });
+
+  const handleDissolutionComplete = useCallback(() => {
+    setDissolving(false);
+    setEnterFadingOut(false);
+    setPhase('main');
+  }, []);
 
   const shutdown = useShutdownSequence({
     phase,
@@ -120,7 +194,9 @@ export default function Home() {
     onPhaseChange: setPhase,
     onRebootComplete: () => {
       // Reset all state for reboot
-      confirmScreen.resetConfirmState();
+      audio.stopAll();
+      setDissolving(false);
+      setEnterFadingOut(false);
       entrance.resetEntranceState();
       setShowWelcomePopup(false);
       setActiveSection(null);
@@ -143,13 +219,46 @@ export default function Home() {
   const { scrambled } = useLanguageScramble({ phase, language });
 
   const draggable = useDraggable();
+  const popupTransition = usePopupTransition();
 
+  // Cycle color palette — triggered by clicking center rect in GridScene
+  const cycleColorPalette = useCallback(() => {
+    if (themeMode !== 'color') return;
+    const nextIdx = (paletteIndex + 1) % COLOR_PALETTES.length;
+    setPaletteIndex(nextIdx);
+    applyPalette(nextIdx);
+    localStorage.setItem('superself-palette', String(nextIdx));
+  }, [themeMode, paletteIndex, applyPalette]);
+
+  // Theme toggle — 3 states only: dark → color → light
   const toggleTheme = useCallback(() => {
-    const next = theme === 'light' ? 'dark' : 'light';
-    localStorage.setItem('theme', next);
-    document.documentElement.dataset.theme = next;
-    setTheme(next);
-  }, [theme]);
+    if (themeMode === 'dark') {
+      // dark → color (use saved palette)
+      clearPaletteOverrides();
+      document.documentElement.dataset.theme = 'color';
+      setThemeMode('color');
+      applyPalette(paletteIndex);
+      localStorage.setItem('theme', 'color');
+    } else if (themeMode === 'color') {
+      // color → white
+      clearPaletteOverrides();
+      document.documentElement.style.removeProperty('--background');
+      localStorage.removeItem('superself-color');
+      localStorage.removeItem('superself-fg');
+      document.documentElement.dataset.theme = 'white';
+      setThemeMode('white');
+      localStorage.setItem('theme', 'white');
+    } else {
+      // white → dark
+      clearPaletteOverrides();
+      document.documentElement.style.removeProperty('--background');
+      localStorage.removeItem('superself-color');
+      localStorage.removeItem('superself-fg');
+      document.documentElement.dataset.theme = 'dark';
+      setThemeMode('dark');
+      localStorage.setItem('theme', 'dark');
+    }
+  }, [themeMode, paletteIndex, applyPalette, clearPaletteOverrides]);
 
   // Detect problematic aspect ratio (landscape on small screens)
   useEffect(() => {
@@ -168,6 +277,89 @@ export default function Home() {
     return () => {
       window.removeEventListener('resize', checkAspectRatio);
       window.removeEventListener('orientationchange', checkAspectRatio);
+    };
+  }, []);
+
+  // Icon spin — JS-managed: still at rest, spin on hover, complete lap on leave
+  useEffect(() => {
+    // Skip on touch devices
+    if ('ontouchstart' in window && window.innerWidth < 1024) return;
+
+    interface SpinState { angle: number; prevAngle: number; hovering: boolean; lastTime: number }
+    const states = new WeakMap<Element, SpinState>();
+    const activeSet = new Set<Element>();
+    let rafId: number | null = null;
+
+    function tick(time: number) {
+      for (const el of activeSet) {
+        const s = states.get(el);
+        if (!s) { activeSet.delete(el); continue; }
+        if (!s.lastTime) s.lastTime = time;
+        const dt = time - s.lastTime;
+        s.lastTime = time;
+
+        s.prevAngle = s.angle;
+        s.angle = (s.angle + 360 * dt / 2800) % 360; // 2.8s per revolution
+        (el as HTMLElement).style.transform = `rotateY(${s.angle.toFixed(1)}deg)`;
+
+        // If not hovering and angle just wrapped past 360→0, stop
+        const wrapped = s.angle < s.prevAngle; // crossed the 360→0 boundary
+        if (!s.hovering && wrapped) {
+          s.angle = 0;
+          (el as HTMLElement).style.transform = '';
+          s.lastTime = 0;
+          activeSet.delete(el);
+        }
+      }
+      if (activeSet.size > 0) {
+        rafId = requestAnimationFrame(tick);
+      } else {
+        rafId = null;
+      }
+    }
+
+    function getTarget(container: Element): Element | null {
+      return container.querySelector('svg') || container.querySelector('span');
+    }
+
+    function handleEnter(e: Event) {
+      const target = getTarget(e.currentTarget as Element);
+      if (!target) return;
+      let s = states.get(target);
+      if (!s) { s = { angle: 0, prevAngle: 0, hovering: false, lastTime: 0 }; states.set(target, s); }
+      s.hovering = true;
+      s.lastTime = 0;
+      activeSet.add(target);
+      if (!rafId) rafId = requestAnimationFrame(tick);
+    }
+
+    function handleLeave(e: Event) {
+      const target = getTarget(e.currentTarget as Element);
+      if (!target) return;
+      const s = states.get(target);
+      if (s) s.hovering = false;
+    }
+
+    function attach() {
+      document.querySelectorAll('.social-icon, .theme-toggle-btn').forEach(el => {
+        el.removeEventListener('mouseenter', handleEnter);
+        el.removeEventListener('mouseleave', handleLeave);
+        el.addEventListener('mouseenter', handleEnter);
+        el.addEventListener('mouseleave', handleLeave);
+      });
+    }
+
+    attach();
+    const observer = new MutationObserver(attach);
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    return () => {
+      observer.disconnect();
+      if (rafId) cancelAnimationFrame(rafId);
+      document.querySelectorAll('.social-icon, .theme-toggle-btn').forEach(el => {
+        el.removeEventListener('mouseenter', handleEnter);
+        el.removeEventListener('mouseleave', handleLeave);
+      });
     };
   }, []);
 
@@ -219,12 +411,11 @@ export default function Home() {
   }, [phase, rebootCount]);
 
   const handleLoadingComplete = useCallback(() => {
-    setPhase('main');
+    setPhase('enter');
   }, []);
 
   // Skip handler
   const handleSkip = () => {
-    confirmScreen.resetConfirmState();
     setShowLogo(false);
     setShowLoader(false);
     setSkipMode(true);
@@ -356,13 +547,31 @@ export default function Home() {
           bottom: frameInsetBottom,
           display: showMainContent ? 'block' : 'none',
           pointerEvents: 'auto',
-          border: '1px solid rgba(255,255,255,0.6)',
+          border: '1px solid var(--frame-border, rgba(255,255,255,0.6))',
           opacity: entrance.showFrame ? 1 : 0,
           transition: 'opacity 1.5s ease-in-out',
         }}
       >
         <GridScene />
       </div>
+
+      {/* Center click zone — only active in color mode, cycles palettes */}
+      {showMainContent && themeMode === 'color' && (
+        <div
+          onClick={cycleColorPalette}
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            width: 'min(20vw, 20vh)',
+            height: 'min(20vw, 20vh)',
+            cursor: 'pointer',
+            zIndex: 5,
+            pointerEvents: 'auto',
+          }}
+        />
+      )}
 
       {/* === BOOT / LOADING PHASE === */}
       <div
@@ -375,26 +584,43 @@ export default function Home() {
           alignItems: 'center',
           justifyContent: 'center',
           width: 'max(31vmin, min(45vw, 250px))',
-          display: phase === 'boot' || phase === 'loading' ? 'flex' : 'none',
+          display: phase === 'boot' || phase === 'loading' || phase === 'enter' ? 'flex' : 'none',
         }}
       >
         <div
+          ref={logoRef}
           style={{
             marginBottom: '1rem',
             width: '86%',
             aspectRatio: '1',
             position: 'relative',
-            opacity: showLogo ? 1 : 0,
+            opacity: showLogo && !dissolving ? 1 : 0,
+            transition: dissolving ? 'opacity 0.1s ease' : undefined,
           }}
         >
-          <Image src="/superself-logo-wh.webp" alt="superself" fill style={{ objectFit: 'contain' }} priority />
+          <div
+            aria-label="superself"
+            style={{
+              position: 'absolute',
+              inset: 0,
+              backgroundColor: 'var(--foreground, #fff)',
+              WebkitMaskImage: 'url(/superself-logo-wh.webp)',
+              maskImage: 'url(/superself-logo-wh.webp)',
+              WebkitMaskSize: 'contain',
+              maskSize: 'contain',
+              WebkitMaskRepeat: 'no-repeat',
+              maskRepeat: 'no-repeat',
+              WebkitMaskPosition: 'center',
+              maskPosition: 'center',
+            }}
+          />
         </div>
         <div
           style={{
-            opacity: showLoader ? 1 : 0,
-            transition: 'opacity 0.5s ease',
+            opacity: (showLoader || phase === 'enter') ? 1 : 0,
             width: 'clamp(50%, 40vw, 80%)',
             marginTop: '0.5rem',
+            height: '2.5rem',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -403,25 +629,36 @@ export default function Home() {
           {showLoader && (phase === 'boot' || phase === 'loading') && (
             <LoadingDots key={rebootCount} onComplete={handleLoadingComplete} />
           )}
+          {phase === 'enter' && !(enterFadingOut && dissolving) && (
+            <div
+              onClick={!enterFadingOut ? enterScreen.handleEnter : undefined}
+              style={{
+                fontFamily: winFont,
+                fontSize: 'clamp(1.2rem, 4vw, 1.8rem)',
+                color: 'var(--foreground, #fff)',
+                letterSpacing: '0.15em',
+                cursor: enterFadingOut ? 'default' : 'pointer',
+                textAlign: 'center',
+                userSelect: 'none',
+                position: 'relative',
+                animation: enterFadingOut
+                  ? 'blink 0.1s step-end 5'
+                  : 'fadeIn 0.5s ease-out',
+              }}
+            >
+              {enterScreen.displayText}<span className={enterFadingOut ? '' : 'blink'} style={{ position: 'absolute', opacity: enterScreen.displayText && !enterFadingOut ? 1 : 0 }}>_</span>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* === CONFIRM PHASE === */}
-      {phase === 'confirm' && (
-        <ConfirmScreen
-          typedWelcome={confirmScreen.typedWelcome}
-          welcomeDots={confirmScreen.welcomeDots}
-          typedConfirm={confirmScreen.typedConfirm}
-          typedYes={confirmScreen.typedYes}
-          typedNo={confirmScreen.typedNo}
-          showSelector={confirmScreen.showSelector}
-          showConfirmCursor={confirmScreen.showConfirmCursor}
-          selectedOption={confirmScreen.selectedOption}
-          showLoadingDots={confirmScreen.showLoadingDots}
-          loadingDots={confirmScreen.loadingDots}
-          onSelect={confirmScreen.handleConfirmSelect}
-        />
-      )}
+      {/* === LOGO DISSOLUTION OVERLAY === */}
+      <LogoDissolver
+        logoRect={logoRect}
+        src="/superself-logo-wh.webp"
+        trigger={dissolving}
+        onComplete={handleDissolutionComplete}
+      />
 
       {/* === SHUTDOWN PHASE === */}
       {phase === 'shutdown' && (
@@ -442,7 +679,7 @@ export default function Home() {
           display: showMainContent ? 'inline-block' : 'none',
           fontFamily: winFont,
           fontSize: 'clamp(2.5rem, 7vw, 5rem)',
-          color: 'white',
+          color: 'var(--foreground)',
           backgroundColor: 'transparent',
           visibility: entrance.showTitlePrompt ? 'visible' : 'hidden',
           cursor: 'pointer',
@@ -507,6 +744,22 @@ export default function Home() {
       >
       </div>
 
+      {/* Mute toggle — top right */}
+      <div
+        style={{
+          position: 'absolute',
+          top: contentInset,
+          right: contentInset,
+          display: showMainContent ? 'flex' : 'none',
+          opacity: entrance.showFooter ? 1 : 0,
+          transition: 'opacity 0.8s ease-in-out',
+          transitionDelay: entrance.showFooter ? '3.5s' : '0s',
+          zIndex: 10,
+        }}
+      >
+        <MuteToggle isMuted={audio.isMuted} onToggle={audio.toggleMute} />
+      </div>
+
       {/* Social icons */}
       <div
         className="social-icons-container"
@@ -516,7 +769,8 @@ export default function Home() {
           right: contentInset,
           display: showMainContent ? 'flex' : 'none',
           flexDirection: 'column',
-          gap: '12px',
+          gap: '8px',
+          alignItems: 'center',
           opacity: entrance.showFooter ? 1 : 0,
           transition: 'opacity 0.8s ease-in-out',
           transitionDelay: entrance.showFooter ? '3.5s' : '0s',
@@ -562,8 +816,18 @@ export default function Home() {
           return (
           <button
             key={section}
+            ref={(el) => { navRefs.current[section] = el; }}
             className={activeSection === section ? '' : 'nav-cli'}
-            onClick={() => setActiveSection(activeSection === section ? null : section)}
+            onClick={() => {
+              if (activeSection === section) {
+                popupTransition.triggerClose(section);
+                setTimeout(() => setActiveSection(null), 300);
+              } else {
+                const rect = navRefs.current[section]?.getBoundingClientRect();
+                if (rect) popupTransition.triggerOpen(rect, section);
+                setActiveSection(section);
+              }
+            }}
             style={{
               fontFamily: winFont,
               fontSize: 'clamp(1.2rem, 4vw, 1.6rem)',
@@ -757,6 +1021,7 @@ export default function Home() {
             onMouseDown={() => setActiveWindow('about')}
             onTouchStart={() => setActiveWindow('about')}
             style={{
+              ...popupTransition.getPopupStyle('about'),
               backgroundColor: 'var(--win95-bg, #c0c0c0)',
               border: '2px solid',
               borderColor: 'var(--win95-highlight, #dfdfdf) var(--win95-shadow, #0a0a0a) var(--win95-shadow, #0a0a0a) var(--win95-highlight, #dfdfdf)',
@@ -806,7 +1071,7 @@ export default function Home() {
                 </span>
               </div>
               <button
-                onClick={(e) => { e.stopPropagation(); setActiveSection(null); draggable.resetPosition('about'); }}
+                onClick={(e) => { e.stopPropagation(); popupTransition.triggerClose('about'); setTimeout(() => { setActiveSection(null); draggable.resetPosition('about'); }, 300); }}
                 onMouseDown={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
@@ -837,12 +1102,9 @@ export default function Home() {
                 borderColor: 'var(--win95-dark, #808080) var(--win95-highlight, #dfdfdf) var(--win95-highlight, #dfdfdf) var(--win95-dark, #808080)',
                 padding: '16px 18px',
               }}>
-                {/* Header */}
-                <div style={{ marginBottom: '12px' }}>
-                  <span style={{ backgroundColor: 'var(--selection-fg, #000080)', color: '#fff', padding: '2px 6px', fontWeight: 'bold', fontSize: '1.05em' }}>superself</span>
-                </div>
-                {/* Bio */}
+                {/* Bio — "superself" flows inline with text */}
                 <p style={{ margin: 0, wordBreak: 'break-word', color: '#000' }}>
+                  <span style={{ backgroundColor: 'var(--selection-fg, #000080)', color: '#fff', padding: '2px 6px', fontWeight: 'bold', fontSize: '1.05em' }}>superself</span>{' '}
                   {scrambled.aboutBio || t.aboutBio}
                 </p>
               </div>
@@ -861,12 +1123,13 @@ export default function Home() {
       {activeSection === 'shop' && (
         <Shop
           language={language}
-          onClose={() => { setActiveSection(null); draggable.resetPosition('shop'); }}
+          onClose={() => { popupTransition.triggerClose('shop'); setTimeout(() => { setActiveSection(null); draggable.resetPosition('shop'); }, 300); }}
           position={draggable.shopPos}
           isActive={activeWindow === 'shop'}
           onActivate={() => setActiveWindow('shop')}
           onDragStart={(e) => draggable.handleDragStart(e, 'shop')}
           isDragging={draggable.isDragging === 'shop'}
+          transitionStyle={popupTransition.getPopupStyle('shop')}
         />
       )}
 
@@ -874,12 +1137,13 @@ export default function Home() {
       {activeSection === 'mixes' && (
         <Mixes
           language={language}
-          onClose={() => { setActiveSection(null); draggable.resetPosition('mixes'); }}
+          onClose={() => { popupTransition.triggerClose('mixes'); setTimeout(() => { setActiveSection(null); draggable.resetPosition('mixes'); }, 300); }}
           position={draggable.mixesPos}
           isActive={activeWindow === 'mixes'}
           onActivate={() => setActiveWindow('mixes')}
           onDragStart={(e) => draggable.handleDragStart(e, 'mixes')}
           isDragging={draggable.isDragging === 'mixes'}
+          transitionStyle={popupTransition.getPopupStyle('mixes')}
         />
       )}
 
@@ -938,11 +1202,11 @@ export default function Home() {
             cursor: 'pointer',
             fontFamily: winFont,
             fontSize: 'clamp(0.85rem, 2vw, 1.3rem)',
-            color: 'rgba(255,255,255,0.75)',
+            color: 'var(--text-primary, rgba(255,255,255,0.75))',
             zIndex: 10,
           }}
         >
-          <span className="blink-slow" style={{ backgroundColor: 'rgba(255,255,255,0.15)', padding: '2px 4px' }}>▶</span> [{scrambled.message || t.message}]
+          <span className="blink-slow">▶</span> [{scrambled.message || t.message}]
         </div>
       )}
 
@@ -953,15 +1217,15 @@ export default function Home() {
         aria-label="Language"
         style={{
           position: 'absolute',
-          bottom: phase === 'confirm' ? 'clamp(80px, 15vh, 120px)' : 'clamp(30px, 5vw, 60px)',
-          left: phase === 'confirm' ? '50%' : 'calc(clamp(30px, 5vw, 60px) / 2)',
-          transform: phase === 'confirm' ? 'translateX(-50%)' : 'translateX(-50%)',
-          display: phase === 'confirm' || phase === 'main' ? 'flex' : 'none',
-          flexDirection: phase === 'confirm' ? 'row' : 'column-reverse',
-          gap: phase === 'confirm' ? '24px' : 'clamp(16px, 4vw, 24px)',
+          bottom: frameInsetBottom,
+          left: `calc(${frameInset} / 2)`,
+          transform: 'translateX(-50%)',
+          display: phase === 'main' ? 'flex' : 'none',
+          flexDirection: 'column-reverse',
+          gap: 'clamp(12px, 3vw, 20px)',
           fontFamily: winFont,
-          fontSize: 'clamp(1rem, 2.5vw, 1.4rem)',
-          opacity: (phase === 'confirm' && confirmScreen.confirmLangVisible) || (phase === 'main' && entrance.showFooter) ? 1 : 0,
+          fontSize: 'clamp(0.8rem, 2vw, 1.1rem)',
+          opacity: (phase === 'main' && entrance.showFooter) ? 1 : 0,
           transition: 'opacity 0.8s ease-in-out',
           transitionDelay: phase === 'main' && entrance.showFooter ? '4.0s' : '0s',
           zIndex: 50,
@@ -980,9 +1244,9 @@ export default function Home() {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              writingMode: phase === 'confirm' ? 'horizontal-tb' : 'vertical-lr',
-              transform: phase === 'confirm' ? 'none' : 'rotate(180deg)',
-              color: language === lang ? 'rgba(255,255,255,0.95)' : 'rgba(255,255,255,0.4)',
+              writingMode: 'vertical-lr',
+              transform: 'rotate(180deg)',
+              color: language === lang ? 'var(--text-primary, rgba(255,255,255,0.95))' : 'var(--text-muted, rgba(255,255,255,0.4))',
               letterSpacing: '0.04em',
               transition: 'color 0.25s ease',
               background: 'none',
@@ -1001,14 +1265,14 @@ export default function Home() {
           <button
             onClick={toggleTheme}
             className="theme-toggle-btn"
-            aria-label={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+            aria-label="Switch theme"
             style={{
               cursor: 'pointer',
-              color: 'rgba(255,255,255,0.4)',
+              color: 'var(--text-muted, rgba(255,255,255,0.4))',
               background: 'none',
               border: 'none',
               fontFamily: 'inherit',
-              fontSize: 'clamp(1.3rem, 3.5vw, 1.6rem)',
+              fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
               padding: '4px',
               display: 'flex',
               alignItems: 'center',
@@ -1019,10 +1283,8 @@ export default function Home() {
           >
             <span style={{
               display: 'inline-block',
-              transition: 'transform 0.4s ease',
-              transform: theme === 'dark' ? 'rotateY(180deg)' : 'none',
             }}>
-              {theme === 'light' ? '\u263D' : '\u2600'}
+              {themeMode === 'dark' ? '\u263D' : themeMode === 'color' ? '\u25D0' : '\u2600'}
             </span>
           </button>
         )}
@@ -1034,7 +1296,7 @@ export default function Home() {
       <div
         style={{
           position: 'absolute',
-          bottom: 'calc(max(clamp(30px, 5vw, 60px), env(safe-area-inset-bottom, 0px)) / 2)',
+          bottom: `calc(${frameInsetBottom} / 2)`,
           left: '50%',
           transform: 'translateX(-50%) translateY(50%)',
           display: showMainContent ? 'block' : 'none',
@@ -1043,33 +1305,12 @@ export default function Home() {
           transitionDelay: entrance.showFooter ? '4.5s' : '0s',
         }}
       >
-        <span style={{ fontFamily: winFont, fontSize: 'clamp(0.6rem, 1.2vw, 0.75rem)', color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap' }}>
+        <span style={{ fontFamily: winFont, fontSize: 'clamp(0.6rem, 1.2vw, 0.75rem)', color: 'var(--text-muted, rgba(255,255,255,0.35))', whiteSpace: 'nowrap' }}>
           {'{ superself '}<Spinner />{' 2026 }'}
         </span>
       </div>
 
-      {/* Skip button */}
-      {phase === 'confirm' && (
-        <div
-          onClick={handleSkip}
-          style={{
-            position: 'absolute',
-            bottom: 'clamp(30px, 6vh, 50px)',
-            left: 'clamp(24px, 5vw, 40px)',
-            fontFamily: winFont,
-            fontSize: 'clamp(1rem, 2.5vw, 1.2rem)',
-            color: 'rgba(255,255,255,0.5)',
-            cursor: 'pointer',
-            zIndex: 20,
-            display: 'flex',
-            alignItems: 'baseline',
-            gap: '6px',
-          }}
-        >
-          <span className="blink-slow" style={{ fontSize: '0.75em' }}>▶</span>
-          <span>{confirmScreen.scrambledSkip || t.skip}</span>
-        </div>
-      )}
+      {/* Skip button removed — ENTER is the skip */}
 
 
 

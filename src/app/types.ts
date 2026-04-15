@@ -1,5 +1,5 @@
 // Application phase states
-export type Phase = 'boot' | 'loading' | 'pause' | 'confirm' | 'shutdown' | 'off' | 'error' | 'main';
+export type Phase = 'boot' | 'loading' | 'pause' | 'enter' | 'shutdown' | 'off' | 'error' | 'main';
 
 // Supported languages
 export type Language = 'ES' | 'EN' | 'JP';
@@ -16,5 +16,3 @@ export type Position = { x: number; y: number };
 // Welcome popup step
 export type WelcomeStep = 'message' | 'subscribe';
 
-// Confirm screen selection
-export type ConfirmOption = 'yes' | 'no';

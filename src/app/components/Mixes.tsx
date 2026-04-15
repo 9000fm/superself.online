@@ -14,6 +14,7 @@ interface MixesProps {
   onActivate?: () => void;
   onDragStart?: (e: React.MouseEvent | React.TouchEvent) => void;
   isDragging?: boolean;
+  transitionStyle?: React.CSSProperties;
 }
 
 export default function Mixes({
@@ -24,6 +25,7 @@ export default function Mixes({
   onActivate,
   onDragStart,
   isDragging = false,
+  transitionStyle,
 }: MixesProps) {
   const [isMobile, setIsMobile] = useState(false);
   const t = translations[language];
@@ -106,6 +108,7 @@ export default function Mixes({
         onTouchStart={() => onActivate?.()}
         onClick={(e) => e.stopPropagation()}
         style={{
+          ...transitionStyle,
           backgroundColor: 'var(--win95-bg, #c0c0c0)',
           border: '2px solid',
           borderColor: 'var(--win95-highlight, #dfdfdf) var(--win95-shadow, #0a0a0a) var(--win95-shadow, #0a0a0a) var(--win95-highlight, #dfdfdf)',

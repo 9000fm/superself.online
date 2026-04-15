@@ -1,0 +1,129 @@
+import { useState, useRef, useCallback } from 'react';
+
+interface TransitionState {
+  sectionId: string;
+  originRect: DOMRect;
+  phase: 'measuring' | 'animating' | 'done' | 'closing';
+}
+
+interface UsePopupTransitionReturn {
+  triggerOpen: (navRect: DOMRect, sectionId: string) => void;
+  triggerClose: (sectionId: string) => void;
+  isAnimating: string | null;
+  isClosing: string | null;
+  getPopupStyle: (sectionId: string) => React.CSSProperties;
+  getContentStyle: (sectionId: string) => React.CSSProperties;
+}
+
+const OPEN_DURATION = 380;
+const CLOSE_DURATION = 300;
+
+export function usePopupTransition(): UsePopupTransitionReturn {
+  const [transition, setTransition] = useState<TransitionState | null>(null);
+  const rafRef = useRef<number | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Store last origin rect per section for close animation
+  const originsRef = useRef<Record<string, DOMRect>>({});
+
+  const triggerOpen = useCallback((navRect: DOMRect, sectionId: string) => {
+    if (window.innerWidth < 768) { setTransition(null); return; }
+
+    originsRef.current[sectionId] = navRect;
+    setTransition({ sectionId, originRect: navRect, phase: 'measuring' });
+
+    if (rafRef.current) cancelAnimationFrame(rafRef.current);
+    rafRef.current = requestAnimationFrame(() => {
+      rafRef.current = requestAnimationFrame(() => {
+        setTransition(prev => prev ? { ...prev, phase: 'animating' } : null);
+      });
+    });
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setTransition(prev => prev ? { ...prev, phase: 'done' } : null);
+      setTimeout(() => setTransition(null), 50);
+    }, OPEN_DURATION);
+  }, []);
+
+  const triggerClose = useCallback((sectionId: string) => {
+    if (window.innerWidth < 768) return;
+    const rect = originsRef.current[sectionId];
+    if (!rect) return;
+
+    setTransition({ sectionId, originRect: rect, phase: 'closing' });
+
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => {
+      setTransition(null);
+    }, CLOSE_DURATION);
+  }, []);
+
+  const getPopupStyle = useCallback((sectionId: string): React.CSSProperties => {
+    if (!transition || transition.sectionId !== sectionId) return {};
+    const { originRect, phase } = transition;
+
+    if (phase === 'measuring') {
+      const cx = originRect.left + originRect.width / 2;
+      const cy = originRect.top + originRect.height / 2;
+      const dx = cx - window.innerWidth / 2;
+      const dy = cy - window.innerHeight / 2;
+      return {
+        transform: `translate(${dx}px, ${dy}px) scale(0.05, 0.02)`,
+        opacity: 1,
+        transition: 'none',
+        transformOrigin: 'center center',
+        zIndex: 200,
+      };
+    }
+
+    if (phase === 'animating') {
+      return {
+        transform: 'translate(0, 0) scale(1, 1)',
+        opacity: 1,
+        transition: `transform ${OPEN_DURATION}ms cubic-bezier(0.16, 1, 0.3, 1), opacity ${OPEN_DURATION * 0.3}ms ease`,
+        transformOrigin: 'center center',
+        zIndex: 200,
+      };
+    }
+
+    if (phase === 'closing') {
+      const cx = originRect.left + originRect.width / 2;
+      const cy = originRect.top + originRect.height / 2;
+      const dx = cx - window.innerWidth / 2;
+      const dy = cy - window.innerHeight / 2;
+      return {
+        transform: `translate(${dx}px, ${dy}px) scale(0.05, 0.02)`,
+        opacity: 0,
+        transition: `transform ${CLOSE_DURATION}ms cubic-bezier(0.5, 0, 0.84, 0), opacity ${CLOSE_DURATION * 0.6}ms ease`,
+        transformOrigin: 'center center',
+        zIndex: 200,
+        pointerEvents: 'none',
+      };
+    }
+
+    return {};
+  }, [transition]);
+
+  const getContentStyle = useCallback((sectionId: string): React.CSSProperties => {
+    if (!transition || transition.sectionId !== sectionId) return {};
+    const { phase } = transition;
+
+    if (phase === 'measuring') return { opacity: 0, transition: 'none' };
+    if (phase === 'animating') {
+      return { opacity: 1, transition: `opacity ${OPEN_DURATION * 0.4}ms ease ${OPEN_DURATION * 0.5}ms` };
+    }
+    if (phase === 'closing') {
+      return { opacity: 0, transition: `opacity ${CLOSE_DURATION * 0.3}ms ease` };
+    }
+    return {};
+  }, [transition]);
+
+  return {
+    triggerOpen,
+    triggerClose,
+    isAnimating: transition && (transition.phase === 'measuring' || transition.phase === 'animating') ? transition.sectionId : null,
+    isClosing: transition?.phase === 'closing' ? transition.sectionId : null,
+    getPopupStyle,
+    getContentStyle,
+  };
+}
