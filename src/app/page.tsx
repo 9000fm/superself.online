@@ -372,8 +372,8 @@ export default function Home() {
         setTimeout(() => audio.startMusic(), 400);
       }, 1200);
       // Flash fires slightly before dissolution ends (particles almost converged)
-      setTimeout(() => setInvertFlash(true), 3800);
-      setTimeout(() => setInvertFlash(false), 6600);
+      setTimeout(() => setInvertFlash(true), 4200);
+      setTimeout(() => setInvertFlash(false), 7000);
     },
   });
 

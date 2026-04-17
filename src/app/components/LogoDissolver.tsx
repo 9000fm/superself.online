@@ -259,9 +259,9 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
         p.y += p.vy + (Math.random() - 0.5) * jitter;
       }
 
-      // Fade when particle reaches the center rect area
-      const nearRect = Math.abs(p.x - cw/2) < (cw - 84) * 0.04 && Math.abs(p.y - ch/2) < (ch - 84) * 0.04;
-      p.alpha -= nearRect ? 0.03 : 0.004;
+      // Uniform slow fade — no center-rect acceleration.
+      // The old nearRect boost created a hollow silhouette matching the inner rect.
+      p.alpha -= 0.004;
 
       if (p.alpha <= 0) continue;
       aliveCount++;

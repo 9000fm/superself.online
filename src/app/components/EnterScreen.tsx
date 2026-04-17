@@ -29,7 +29,7 @@ export function EnterScreen({ displayText, onEnter }: EnterScreenProps) {
       <div
         style={{
           fontFamily: WIN_FONT,
-          fontSize: 'clamp(3rem, 11vw, 6rem)',
+          fontSize: 'clamp(4rem, 15vw, 9rem)',
           color: 'var(--foreground, #fff)',
           letterSpacing: '0.15em',
           textAlign: 'center',

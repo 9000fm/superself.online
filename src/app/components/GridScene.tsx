@@ -201,8 +201,9 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
       // ─── Inner rectangle — smooth fade during dissolution ───
       if (dissolving) {
         const dissolveElapsed = (performance.now() - dissolveStartRef.current) / 1000;
-        // Rect fades in: starts at T+2.0s (after particles damp), fully solid by T+3.0s
-        const rectAlpha = dissolveElapsed < 2.0 ? 0 : Math.min(1, (dissolveElapsed - 2.0) / 1.0);
+        // Rect fades in early to fill any center hollow from drifting particles.
+        // Start T+0.4s, fully solid by T+1.6s.
+        const rectAlpha = dissolveElapsed < 0.4 ? 0 : Math.min(1, (dissolveElapsed - 0.4) / 1.2);
         if (rectAlpha > 0) {
           ctx.fillStyle = `rgba(${fgR}, ${fgG}, ${fgB}, ${rectAlpha.toFixed(2)})`;
           ctx.fillRect(Math.floor(iL), Math.floor(iT), Math.ceil(iW) + 1, Math.ceil(iH) + 1);
