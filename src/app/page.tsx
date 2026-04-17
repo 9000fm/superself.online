@@ -1,12 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import Image from 'next/image';
 import LoadingDots from './LoadingDots';
 import type { AsciiArtRef } from './AsciiArt';
 
 // Types
-import { Phase, Language, ActiveSection, ActiveWindow, WelcomeStep } from './types';
+import { Phase, Language, ActiveSection, ActiveWindow, WelcomeStep, Position } from './types';
 
 // Translations
 import { translations } from './translations';
@@ -23,11 +22,11 @@ import {
   useMainEntrance,
   useLanguageScramble,
   useDraggable,
+  clampToViewport,
 } from './hooks';
 
 // Components
 import {
-  Win95Popup,
   ErrorScreen,
   ShutdownScreen,
   Shop,
@@ -38,6 +37,44 @@ import Mixes from './components/Mixes';
 
 // Grid scene — imported directly (not lazy) so WebGL initializes during boot
 import GridScene from './components/GridScene';
+
+// Default panel sizes (approximate — used to compute home positions + animation target)
+const PANEL_SIZES = {
+  about: { w: 480, h: 420 },
+  shop: { w: 780, h: 500 },
+  mixes: { w: 520, h: 420 },
+} as const;
+
+// Home positions: where each panel opens by default (desktop only).
+function getHomePosition(section: 'about' | 'shop' | 'mixes'): { x: number; y: number } {
+  if (typeof window === 'undefined' || window.innerWidth < 768) return { x: 0, y: 0 };
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  const s = PANEL_SIZES[section];
+
+  // Small viewport (devtools open, narrow desktop): center with slight offset
+  if (vw < 1100 || vh < 800) {
+    const baseX = Math.max(20, (vw - s.w) / 2);
+    const baseY = Math.max(20, (vh - s.h) / 2);
+    // Slight stagger per section so they don't perfectly overlap
+    const offsets = { about: { x: -30, y: -20 }, shop: { x: 10, y: 0 }, mixes: { x: -10, y: 30 } };
+    const off = offsets[section];
+    return {
+      x: Math.round(Math.max(20, Math.min(baseX + off.x, vw - s.w - 20))),
+      y: Math.round(Math.max(20, Math.min(baseY + off.y, vh - s.h - 20))),
+    };
+  }
+
+  // Large viewport: distributed zones far from nav column
+  let x: number, y: number;
+  if (section === 'about') { x = vw * 0.32; y = vh * 0.22; }
+  else if (section === 'shop') { x = vw * 0.54; y = vh * 0.14; }
+  else { x = vw * 0.38; y = vh * 0.54; }
+  const minX = Math.max(20, vw * 0.24);
+  x = Math.max(minX, Math.min(x, vw - s.w - 20));
+  y = Math.max(20, Math.min(y, vh - s.h - 20));
+  return { x: Math.round(x), y: Math.round(y) };
+}
 
 // Isolated spinner component to prevent re-renders on main component
 function Spinner() {
@@ -54,6 +91,125 @@ function Spinner() {
   return <span>{chars[frame]}</span>;
 }
 
+// Coordinate label at crosshair intersection — [x, y] with 0,0 at bottom-left
+function CoordinateHUD() {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
+    if (isTouch) return;
+
+    const onMove = (e: MouseEvent) => {
+      if (ref.current) {
+        const x = (e.clientX / window.innerWidth).toFixed(3);
+        const y = ((window.innerHeight - e.clientY) / window.innerHeight).toFixed(3);
+        ref.current.style.transform = `translate(${e.clientX + 3}px, ${e.clientY - 16}px)`;
+        ref.current.textContent = `[${x}, ${y}]`;
+      }
+    };
+    window.addEventListener('mousemove', onMove);
+    return () => window.removeEventListener('mousemove', onMove);
+  }, []);
+
+  return (
+    <div ref={ref} style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      fontFamily: 'var(--font-terminal), monospace',
+      fontSize: '16px',
+      fontWeight: 'bold',
+      letterSpacing: '0.08em',
+      color: 'var(--foreground)',
+      opacity: 0.9,
+      pointerEvents: 'none',
+      zIndex: 9998,
+      willChange: 'transform',
+      whiteSpace: 'nowrap',
+    }}>
+      [ 0 , 0 ]
+    </div>
+  );
+}
+
+// Crosshair cursor lines — desktop: follows mouse. Mobile: shows on tap, fades after 1.5s.
+function CursorCrosshair() {
+  const hRef = useRef<HTMLDivElement>(null);
+  const vRef = useRef<HTMLDivElement>(null);
+  const fadeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isTouch = window.matchMedia('(pointer: coarse)').matches;
+
+    const show = (x: number, y: number) => {
+      if (hRef.current) { hRef.current.style.transform = `translateY(${y}px)`; hRef.current.style.opacity = '0.3'; }
+      if (vRef.current) { vRef.current.style.transform = `translateX(${x}px)`; vRef.current.style.opacity = '0.3'; }
+    };
+    const hide = () => {
+      if (hRef.current) hRef.current.style.opacity = '0';
+      if (vRef.current) vRef.current.style.opacity = '0';
+    };
+
+    if (isTouch) {
+      const onTouch = (e: TouchEvent) => {
+        const t = e.touches[0];
+        if (!t) return;
+        show(t.clientX, t.clientY);
+        clearTimeout(fadeTimer.current);
+        fadeTimer.current = setTimeout(hide, 1500);
+      };
+      const onTouchMove = (e: TouchEvent) => {
+        const t = e.touches[0];
+        if (!t) return;
+        show(t.clientX, t.clientY);
+        clearTimeout(fadeTimer.current);
+      };
+      const onTouchEnd = () => {
+        clearTimeout(fadeTimer.current);
+        fadeTimer.current = setTimeout(hide, 1500);
+      };
+      window.addEventListener('touchstart', onTouch, { passive: true });
+      window.addEventListener('touchmove', onTouchMove, { passive: true });
+      window.addEventListener('touchend', onTouchEnd);
+      hide();
+      return () => {
+        window.removeEventListener('touchstart', onTouch);
+        window.removeEventListener('touchmove', onTouchMove);
+        window.removeEventListener('touchend', onTouchEnd);
+      };
+    } else {
+      const onMove = (e: MouseEvent) => {
+        show(e.clientX, e.clientY);
+        clearTimeout(fadeTimer.current);
+        fadeTimer.current = setTimeout(hide, 3000);
+      };
+      window.addEventListener('mousemove', onMove);
+      return () => { window.removeEventListener('mousemove', onMove); clearTimeout(fadeTimer.current); };
+    }
+  }, []);
+
+  return (
+    <>
+      <div ref={hRef} style={{
+        position: 'fixed', top: 0, left: 0, right: 0,
+        height: '1.5px', background: 'var(--foreground)',
+        opacity: 0, pointerEvents: 'none', zIndex: 1,
+        willChange: 'transform',
+        transition: 'opacity 0.4s ease',
+      }} />
+      <div ref={vRef} style={{
+        position: 'fixed', top: 0, left: 0, bottom: 0,
+        width: '1.5px', background: 'var(--foreground)',
+        opacity: 0, pointerEvents: 'none', zIndex: 1,
+        willChange: 'transform',
+        transition: 'opacity 0.4s ease',
+      }} />
+    </>
+  );
+}
+
 export default function Home() {
   // Core state
   const [phase, setPhase] = useState<Phase>('boot');
@@ -64,12 +220,22 @@ export default function Home() {
 
   // Popup/section states
   const [showWelcomePopup, setShowWelcomePopup] = useState(false);
-  const [activeSection, setActiveSection] = useState<ActiveSection>(null);
+  // openStack: last item = focused (top z-index). Multi-window on desktop, 1-at-a-time on mobile.
+  const [openStack, setOpenStack] = useState<Array<Exclude<ActiveSection, null>>>([]);
   const [visibleNavItems, setVisibleNavItems] = useState(0);
   const [navBlinking, setNavBlinking] = useState<number | null>(null);
+  // activeWindow tracks welcome-popup focus only (the 3 main panels use openStack).
   const [activeWindow, setActiveWindow] = useState<ActiveWindow>(null);
   const [showNotification, setShowNotification] = useState(false);
   const [welcomeStep, setWelcomeStep] = useState<WelcomeStep>('message');
+  const [smileyExpression, setSmileyExpression] = useState<'open-right' | 'open-left' | 'blink'>('open-right');
+  const smileyDirectionRef = useRef<'right' | 'left'>('right');
+  const [welcomeMessage, setWelcomeMessage] = useState('');
+
+  const focusedSection: Exclude<ActiveSection, null> | null =
+    openStack.length > 0 ? openStack[openStack.length - 1] : null;
+  const isOpen = (s: Exclude<ActiveSection, null>) => openStack.includes(s);
+  const isFocused = (s: Exclude<ActiveSection, null>) => focusedSection === s;
 
   // Email/subscribe states
   const [showEmailCopied, setShowEmailCopied] = useState(false);
@@ -90,13 +256,17 @@ export default function Home() {
   // Logo dissolution
   const [dissolving, setDissolving] = useState(false);
   const [enterFadingOut, setEnterFadingOut] = useState(false);
+  const [invertFlash, setInvertFlash] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
   // Landscape warning
   const [showLandscapeWarning, setShowLandscapeWarning] = useState(false);
 
+  // Explore mode (labyrinth AFK screensaver)
+
   // Theme state — cycles: dark → color palettes → white → dark
   type ThemeMode = 'dark' | 'color' | 'white';
-  const [themeMode, setThemeMode] = useState<ThemeMode>('dark');
+  const [themeMode, setThemeMode] = useState<ThemeMode>('color');
   const [paletteIndex, setPaletteIndex] = useState(0);
 
   // Apply color palette CSS variables
@@ -117,6 +287,26 @@ export default function Home() {
     el.style.setProperty('--nav-hover-fg', p.hoverFg);
     el.style.setProperty('--nav-hover-fg-contrast', p.hoverFg);
     el.style.setProperty('--bar-color', p.bar);
+    // Panel tokens: adapt to popup-bg luminance (popup-bg = fg).
+    // Dark fg → popup has dark bg → need LIGHT borders. Light fg → dark borders.
+    const hex = p.fg.replace('#', '');
+    const r = parseInt(hex.slice(0,2), 16);
+    const g = parseInt(hex.slice(2,4), 16);
+    const b = parseInt(hex.slice(4,6), 16);
+    const isLightFg = (r * 0.299 + g * 0.587 + b * 0.114) > 128;
+    if (isLightFg) {
+      el.style.setProperty('--panel-border', 'rgba(0,0,0,0.28)');
+      el.style.setProperty('--panel-divider', 'rgba(0,0,0,0.18)');
+      el.style.setProperty('--panel-prompt', 'rgba(0,0,0,0.6)');
+      el.style.setProperty('--panel-muted', 'rgba(0,0,0,0.5)');
+      el.style.setProperty('--flash-color', p.fg); // lighter = fg
+    } else {
+      el.style.setProperty('--panel-border', 'rgba(255,255,255,0.22)');
+      el.style.setProperty('--panel-divider', 'rgba(255,255,255,0.14)');
+      el.style.setProperty('--panel-prompt', 'rgba(255,255,255,0.55)');
+      el.style.setProperty('--panel-muted', 'rgba(255,255,255,0.45)');
+      el.style.setProperty('--flash-color', p.bg); // lighter = bg
+    }
     // Save to localStorage for hydration script
     localStorage.setItem('superself-color', p.bg);
     localStorage.setItem('superself-fg', p.fg);
@@ -124,7 +314,7 @@ export default function Home() {
 
   const clearPaletteOverrides = useCallback(() => {
     const el = document.documentElement;
-    const props = ['--user-color','--background','--foreground','--bar-color','--frame-border','--text-muted','--text-primary','--selection-bg','--selection-fg','--social-hover-bg','--social-hover-fg','--nav-hover-bg','--nav-hover-fg','--nav-hover-fg-contrast'];
+    const props = ['--user-color','--background','--foreground','--bar-color','--frame-border','--text-muted','--text-primary','--selection-bg','--selection-fg','--social-hover-bg','--social-hover-fg','--nav-hover-bg','--nav-hover-fg','--nav-hover-fg-contrast','--panel-border','--panel-divider','--panel-prompt','--panel-muted','--flash-color'];
     props.forEach(p => el.style.removeProperty(p));
   }, []);
 
@@ -132,8 +322,11 @@ export default function Home() {
     let stored = document.documentElement.dataset.theme as string | undefined;
     if (stored === 'light') { stored = 'color'; localStorage.setItem('theme', 'color'); document.documentElement.dataset.theme = 'color'; }
     const savedIdx = parseInt(localStorage.getItem('superself-palette') || '0', 10);
-    if (stored === 'color' || stored === 'white') setThemeMode(stored as ThemeMode);
-    if (stored === 'color') {
+    if (stored === 'dark' || stored === 'white') {
+      setThemeMode(stored as ThemeMode);
+    } else {
+      // default: color mode with charcoal (palette 0)
+      document.documentElement.dataset.theme = 'color';
       const idx = isNaN(savedIdx) ? 0 : savedIdx % COLOR_PALETTES.length;
       setPaletteIndex(idx);
       applyPalette(idx);
@@ -164,30 +357,30 @@ export default function Home() {
   const enterScreen = useEnterScreen({
     phase,
     onEnter: () => {
-      if (enterFadingOut || dissolving) return; // guard against multi-tap
+      if (enterFadingOut || dissolving) return;
       audio.init();
       audio.playWoosh();
-      // Step 1: wait for current scramble to finish resolving (~800ms)
+      // T+0: flicker starts — enter text blinks and disappears
+      setEnterFadingOut(true);
+      // T+1200: dissolution starts (pause after flicker for dramatic breath)
       setTimeout(() => {
-        setEnterFadingOut(true);
-        // Step 2: after flicker, capture logo rect and dissolve
-        setTimeout(() => {
-          // Capture logo position before dissolving
-          if (logoRef.current) {
-            const rect = logoRef.current.getBoundingClientRect();
-            setLogoRect({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
-          }
-          setDissolving(true);
-          setTimeout(() => audio.startMusic(), 400);
-        }, 600);
-      }, 800);
+        if (logoRef.current) {
+          const rect = logoRef.current.getBoundingClientRect();
+          setLogoRect({ x: rect.left, y: rect.top, width: rect.width, height: rect.height });
+        }
+        setDissolving(true);
+        setTimeout(() => audio.startMusic(), 400);
+      }, 1200);
+      // Flash fires slightly before dissolution ends (particles almost converged)
+      setTimeout(() => setInvertFlash(true), 3800);
+      setTimeout(() => setInvertFlash(false), 6600);
     },
   });
 
   const handleDissolutionComplete = useCallback(() => {
     setDissolving(false);
     setEnterFadingOut(false);
-    setSkipMode(true); // fast entrance — frame already visible from dissolution
+    setSkipMode(true);
     setPhase('main');
   }, []);
 
@@ -202,7 +395,7 @@ export default function Home() {
       setEnterFadingOut(false);
       entrance.resetEntranceState();
       setShowWelcomePopup(false);
-      setActiveSection(null);
+      setOpenStack([]);
       setShowNotification(false);
       setShowLogo(false);
       setShowLoader(false);
@@ -459,13 +652,156 @@ export default function Home() {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        setShowWelcomePopup(false);
-        setActiveSection(null);
+        // Close only the top-most popup (OS-like). Welcome is always topmost if open.
+        setShowWelcomePopup(prev => {
+          if (prev) return false;
+          setOpenStack(stack => stack.length > 0 ? stack.slice(0, -1) : stack);
+          return prev;
+        });
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
+
+  // Track actual mobile (touch + narrow) vs desktop (mouse, any size).
+  // Small desktop windows (devtools open) still allow drag + positioned panels.
+  useEffect(() => {
+    const check = () => {
+      const isTouch = window.matchMedia('(pointer: coarse)').matches;
+      const isNarrow = window.innerWidth < 768;
+      setIsMobile(isTouch && isNarrow);
+    };
+    check();
+    window.addEventListener('resize', check);
+    window.addEventListener('orientationchange', check);
+    return () => {
+      window.removeEventListener('resize', check);
+      window.removeEventListener('orientationchange', check);
+    };
+  }, []);
+
+  // Effective popup position — mobile always centered (ignore any stored desktop pos).
+  // Prevents windows from rendering off-screen when stored positions don't fit viewport.
+  const effectivePos = (section: 'welcome' | 'about' | 'shop' | 'mixes'): Position => {
+    if (isMobile) return { x: 0, y: 0 };
+    if (section === 'welcome') return draggable.welcomePos;
+    if (section === 'about') return draggable.aboutPos;
+    if (section === 'shop') return draggable.shopPos;
+    return draggable.mixesPos;
+  };
+
+  // Helper: build the current popup box for close animation (uses actual position after drag).
+  const getCurrentBox = (section: 'about' | 'shop' | 'mixes'): { x: number; y: number; w: number; h: number } => {
+    const pos = draggable.getPosition(section);
+    const size = PANEL_SIZES[section];
+    return { x: pos.x, y: pos.y, w: size.w, h: size.h };
+  };
+
+  // Pick a random welcome message when popup opens. Stays the same until popup closes.
+  useEffect(() => {
+    if (showWelcomePopup) {
+      if (welcomeMessage === '') {
+        const pool = t.welcomeMessages;
+        setWelcomeMessage(pool[Math.floor(Math.random() * pool.length)]);
+      }
+    } else {
+      setWelcomeMessage('');
+    }
+  }, [showWelcomePopup, t, welcomeMessage]);
+
+  // Smiley with life — random 6-12s intervals, 25% chance of double-blink + direction flip
+  useEffect(() => {
+    if (!showWelcomePopup) {
+      setSmileyExpression('open-right');
+      smileyDirectionRef.current = 'right';
+      return;
+    }
+
+    const timeouts: Array<ReturnType<typeof setTimeout>> = [];
+    const openExpr = () => smileyDirectionRef.current === 'right' ? 'open-right' : 'open-left';
+
+    const scheduleNext = () => {
+      const interval = 6000 + Math.random() * 6000; // 6-12s
+      const t1 = setTimeout(() => {
+        const doDirectionChange = Math.random() < 0.25;
+        if (doDirectionChange) {
+          // Double blink with direction flip
+          setSmileyExpression('blink');
+          const t2 = setTimeout(() => {
+            setSmileyExpression(openExpr());
+            const t3 = setTimeout(() => {
+              setSmileyExpression('blink');
+              const t4 = setTimeout(() => {
+                smileyDirectionRef.current = smileyDirectionRef.current === 'right' ? 'left' : 'right';
+                setSmileyExpression(openExpr());
+                scheduleNext();
+              }, 150);
+              timeouts.push(t4);
+            }, 100);
+            timeouts.push(t3);
+          }, 150);
+          timeouts.push(t2);
+        } else {
+          // Single blink, keep direction
+          setSmileyExpression('blink');
+          const t2 = setTimeout(() => {
+            setSmileyExpression(openExpr());
+            scheduleNext();
+          }, 150);
+          timeouts.push(t2);
+        }
+      }, interval);
+      timeouts.push(t1);
+    };
+    scheduleNext();
+    return () => {
+      timeouts.forEach(t => clearTimeout(t));
+    };
+  }, [showWelcomePopup]);
+
+  // Window resize: re-home non-customized panels to fit new viewport.
+  // Customized panels get clamped to stay visible.
+  useEffect(() => {
+    const onResize = () => {
+      if (typeof window === 'undefined') return;
+      const vw = window.innerWidth;
+      const vh = window.innerHeight;
+      const mobile = vw < 768;
+      (['about', 'shop', 'mixes'] as const).forEach(section => {
+        const isMobileNow = mobile;
+        const customized = draggable.isCustomized(section);
+        if (isMobileNow) {
+          // Mobile: everything centered, skip positioning
+          return;
+        }
+        if (customized) {
+          // Clamp customized pos to new viewport (keeping titlebar reachable,
+          // allowing partial off-screen like drag clamp does)
+          const cur = draggable.getPosition(section);
+          if (cur.x === 0 && cur.y === 0) return;
+          const s = PANEL_SIZES[section];
+          const clamped = clampToViewport(cur, s.w, s.h);
+          if (clamped.x !== cur.x || clamped.y !== cur.y) {
+            draggable.setPositionCustom(section, clamped);
+          }
+        } else {
+          // Re-home to fresh position for new viewport
+          const home = getHomePosition(section);
+          const cur = draggable.getPosition(section);
+          if (home.x !== cur.x || home.y !== cur.y) {
+            draggable.setPosition(section, home);
+          }
+        }
+      });
+    };
+    window.addEventListener('resize', onResize);
+    window.addEventListener('orientationchange', onResize);
+    return () => {
+      window.removeEventListener('resize', onResize);
+      window.removeEventListener('orientationchange', onResize);
+    };
+  }, [draggable]);
 
   const showMainContent = phase === 'main';
 
@@ -487,6 +823,26 @@ export default function Home() {
       }}
     >
       <a href="#main-content" className="skip-link">Skip to main content</a>
+
+      {/* Cursor crosshair — desktop only */}
+      {showMainContent && <CursorCrosshair />}
+
+      {/* Flashbang overlay — foreground color, cinematic hold + slow decay.
+           Performance-friendly (flat div, no filter). */}
+      {invertFlash && (
+        <div
+          aria-hidden
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'var(--flash-color, #ffffff)',
+            zIndex: 9999,
+            pointerEvents: 'none',
+            animation: 'flashbangBurn 2800ms linear forwards',
+          }}
+        />
+      )}
+
       {/* Frame border + grid inside it */}
       <div
         data-frame
@@ -496,34 +852,54 @@ export default function Home() {
           left: frameInset,
           right: frameInset,
           bottom: frameInsetBottom,
+          // Main's proven approach: frame shows during dissolving so GridScene's internal
+          // canvas fade-in (rectAlpha T+1s→T+3s, lineAlpha T+1.8s→T+3.3s) plays smoothly
+          // BEHIND the LogoDissolver particles. GridScene handles its own alpha timing.
           display: (showMainContent || dissolving) ? 'block' : 'none',
           pointerEvents: 'auto',
           zIndex: 3,
           border: '1px solid var(--frame-border, rgba(255,255,255,0.6))',
-          opacity: (dissolving || entrance.showFrame) ? 1 : 0,
-          borderColor: dissolving ? 'transparent' : 'var(--frame-border, rgba(255,255,255,0.6))',
-          transition: dissolving
-            ? 'opacity 0.1s, border-color 1s ease 2.5s'
-            : 'opacity 1.5s ease-in-out, border-color 0.5s ease',
+          // During dissolving: CSS animation fades in gradually (synced with GridScene).
+          // Post-dissolution: keep animation applied (forwards fill = opacity 1).
+          // Removing animation on mobile Safari causes a brief repaint dip.
+          opacity: (showMainContent && !dissolving) ? 1 : undefined,
+          animation: (dissolving || showMainContent) ? 'frameReveal 3.5s ease-in forwards' : 'none',
         }}
       >
         <GridScene dissolving={dissolving} />
       </div>
 
-      {/* Center click zone — only active in color mode, cycles palettes */}
+      {/* Marquee click zone — only active in color mode, cycles palettes on any click inside the frame */}
       {showMainContent && themeMode === 'color' && (
         <div
           onClick={cycleColorPalette}
           style={{
             position: 'absolute',
-            top: '50%',
-            left: '50%',
-            transform: 'translate(-50%, -50%)',
-            width: 'min(20vw, 20vh)',
-            height: 'min(20vw, 20vh)',
+            top: frameInset,
+            left: frameInset,
+            right: frameInset,
+            bottom: frameInsetBottom,
             cursor: 'pointer',
             zIndex: 5,
             pointerEvents: 'auto',
+          }}
+        />
+      )}
+
+      {/* === WHOLE-SCREEN CLICK TO ENTER (enter phase only) === */}
+      {phase === 'enter' && !enterFadingOut && (
+        <div
+          onClick={enterScreen.handleEnter}
+          aria-label="Enter site"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            zIndex: 2,
+            cursor: 'pointer',
+            background: 'transparent',
           }}
         />
       )}
@@ -544,12 +920,20 @@ export default function Home() {
       >
         <div
           ref={logoRef}
+          onClick={phase === 'enter' && !enterFadingOut ? enterScreen.handleEnter : undefined}
+          role={phase === 'enter' && !enterFadingOut ? 'button' : undefined}
+          aria-label={phase === 'enter' ? 'Enter site' : undefined}
+          tabIndex={phase === 'enter' && !enterFadingOut ? 0 : -1}
+          onKeyDown={phase === 'enter' && !enterFadingOut ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); enterScreen.handleEnter(); } } : undefined}
           style={{
             marginBottom: '1rem',
             width: '86%',
             aspectRatio: '1',
             position: 'relative',
             opacity: showLogo && !dissolving ? 1 : 0,
+            transition: dissolving ? 'opacity 0.3s ease' : 'none',
+            cursor: phase === 'enter' && !enterFadingOut ? 'pointer' : 'default',
+            outline: 'none',
           }}
         >
           <div
@@ -566,6 +950,7 @@ export default function Home() {
               maskRepeat: 'no-repeat',
               WebkitMaskPosition: 'center',
               maskPosition: 'center',
+              pointerEvents: 'none',
             }}
           />
         </div>
@@ -573,7 +958,9 @@ export default function Home() {
           style={{
             opacity: (showLoader || phase === 'enter') ? 1 : 0,
             width: 'clamp(50%, 40vw, 80%)',
-            marginTop: '0.5rem',
+            marginTop: '0',
+            position: 'relative',
+            top: '-0.6rem',
             height: '2.5rem',
             display: 'flex',
             alignItems: 'center',
@@ -588,14 +975,14 @@ export default function Home() {
               onClick={!enterFadingOut ? enterScreen.handleEnter : undefined}
               style={{
                 fontFamily: winFont,
-                fontSize: 'clamp(1.2rem, 4vw, 1.8rem)',
+                fontSize: 'clamp(0.85rem, 2.5vw, 1.1rem)',
                 color: 'var(--foreground, #fff)',
-                letterSpacing: '0.15em',
+                letterSpacing: '0.35em',
                 cursor: enterFadingOut ? 'default' : 'pointer',
                 textAlign: 'center',
                 userSelect: 'none',
                 position: 'relative',
-                minWidth: 'clamp(140px, 30vw, 220px)',
+                textTransform: 'uppercase',
                 animation: enterFadingOut
                   ? 'blink 0.1s step-end 5'
                   : 'fadeIn 0.5s ease-out',
@@ -699,11 +1086,11 @@ export default function Home() {
       >
       </div>
 
-      {/* Mute toggle — top right */}
+      {/* Mute toggle — top right, slightly below frame edge to align with title */}
       <div
         style={{
           position: 'absolute',
-          top: contentInset,
+          top: `calc(${contentInset} + clamp(0.5rem, 1.2vw, 0.8rem))`,
           right: contentInset,
           display: showMainContent ? 'flex' : 'none',
           opacity: entrance.showFooter ? 1 : 0,
@@ -768,193 +1155,308 @@ export default function Home() {
           const isVisible = visibleNavItems > idx;
           const isBlinking = navBlinking === idx;
           if (!isVisible && !isBlinking) return null;
+          const tKey = section;
+          const isActive = isOpen(section);
           return (
           <button
             key={section}
             ref={(el) => { navRefs.current[section] = el; }}
-            className={activeSection === section ? '' : 'nav-cli'}
+            className={isActive ? '' : 'nav-cli'}
             onClick={() => {
-              if (activeSection === section) {
-                popupTransition.triggerClose(section);
-                setTimeout(() => setActiveSection(null), 300);
+              const wasOpen = isOpen(section);
+              if (wasOpen) {
+                // Toggle off — trigger close animation, then remove from stack
+                // (position is kept in state + localStorage so reopen restores it)
+                popupTransition.triggerClose(section, getCurrentBox(section));
+                setTimeout(() => {
+                  setOpenStack(stack => stack.filter(s => s !== section));
+                }, 300);
               } else {
+                // Toggle on — add to top of stack
                 const rect = navRefs.current[section]?.getBoundingClientRect();
-                if (rect) popupTransition.triggerOpen(rect, section);
-                setActiveSection(section);
+                const mobile = typeof window !== 'undefined' && window.innerWidth < 768;
+                if (mobile) {
+                  setOpenStack([section]);
+                  if (rect) popupTransition.triggerOpen(rect, section);
+                } else {
+                  // Desktop: use saved position (localStorage), else fixed home position
+                  // distributed across the viewport (away from nav column, using empty space).
+                  const saved = draggable.getPosition(section);
+                  const size = PANEL_SIZES[section];
+                  const targetPos = (saved.x !== 0 || saved.y !== 0)
+                    ? saved
+                    : getHomePosition(section);
+                  if (saved.x === 0 && saved.y === 0) {
+                    draggable.setPosition(section, targetPos);
+                  }
+                  const targetBox = { x: targetPos.x, y: targetPos.y, w: size.w, h: size.h };
+                  if (rect) popupTransition.triggerOpen(rect, section, targetBox);
+                  setOpenStack(stack => [...stack.filter(s => s !== section), section]);
+                }
               }
             }}
             style={{
               fontFamily: winFont,
               fontSize: 'clamp(1.3rem, 4.5vw, 1.6rem)',
-              color: activeSection === section ? 'var(--selection-fg, #000)' : undefined,
-              backgroundColor: activeSection === section ? 'var(--selection-bg, #fff)' : undefined,
+              color: isActive ? 'var(--selection-fg, #000)' : undefined,
+              backgroundColor: isActive ? 'var(--selection-bg, #fff)' : undefined,
               cursor: 'pointer',
               padding: 'clamp(2px, 1vw, 6px) clamp(4px, 2vw, 8px)',
               border: 'none',
               animation: isBlinking ? 'blink 0.1s step-end infinite' : 'none',
             }}
-            aria-label={t[section === 'about' ? 'about' : section === 'shop' ? 'shop' : 'mixes']}
+            aria-label={t[tKey]}
           >
-            <span className={activeSection === section ? 'blink' : ''}>&gt;</span>{' '}{(scrambled[section === 'about' ? 'about' : section === 'shop' ? 'shop' : 'mixes'] || t[section === 'about' ? 'about' : section === 'shop' ? 'shop' : 'mixes']).replace('> ', '')}
+            <span className={isActive ? 'blink' : ''}>&gt;</span>{' '}{(scrambled[tKey] || t[tKey]).replace('> ', '')}
+            {/* EQ wave indicator — deferred until SC Widget API integration detects actual playback */}
           </button>
           );
         })}
       </nav>
 
-      {/* Welcome Popup */}
+      {/* Welcome Popup — neo-terminal flat */}
       {showWelcomePopup && (
-        <Win95Popup
-          title={t.welcomeTitle}
-          onClose={handleCloseWelcome}
-          position={draggable.welcomePos}
-          width="250px"
-          windowId="welcome"
-          activeWindow={activeWindow}
-          onActivate={() => setActiveWindow('welcome')}
-          onDragStart={(e) => draggable.handleDragStart(e, 'welcome')}
-          isDragging={draggable.isDragging === 'welcome'}
+        <div
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingTop: isMobile ? 'env(safe-area-inset-top, 20px)' : 0,
+            paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 20px)' : 0,
+            zIndex: activeWindow === 'welcome' ? 170 : 100,
+            pointerEvents: 'none',
+          }}
         >
-          {welcomeStep === 'message' ? (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px', minWidth: '200px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
-                <Image src="/smiley.svg" alt=":)" width={48} height={48} style={{ flexShrink: 0 }} />
-                <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', lineHeight: '1.4', minWidth: '140px' }}>
-                  {scrambled.welcomeMsg || t.welcomeMessage}
+          <div
+            className="popup-window"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={() => setActiveWindow('welcome')}
+            onTouchStart={() => setActiveWindow('welcome')}
+            style={{
+              backgroundColor: 'var(--popup-bg)',
+              border: '1px solid var(--panel-border)',
+              fontFamily: winFont,
+              fontSize: 'clamp(1.05rem, 2.8vw, 1.3rem)',
+              color: 'var(--popup-fg)',
+              maxHeight: isMobile ? 'calc(100svh - 40px)' : undefined,
+              width: 'clamp(340px, 85vw, 480px)',
+              maxWidth: '88vw',
+              lineHeight: '1.55',
+              textAlign: 'left',
+              position: effectivePos('welcome').x || effectivePos('welcome').y ? 'fixed' : 'relative',
+              top: effectivePos('welcome').y || undefined,
+              left: effectivePos('welcome').x || undefined,
+              pointerEvents: 'auto',
+              overflow: isMobile ? 'hidden auto' : 'hidden',
+            }}
+          >
+            {/* Flat titlebar */}
+            <div
+              onMouseDown={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'welcome'); }}
+              onTouchStart={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'welcome'); }}
+              style={{
+                background: 'var(--titlebar-bg)',
+                padding: '6px 10px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: draggable.isDragging === 'welcome' ? 'grabbing' : 'grab',
+                touchAction: 'none',
+                borderBottom: '1px solid var(--panel-border)',
+              }}
+            >
+              <span style={{
+                color: 'var(--titlebar-fg)',
+                fontFamily: winFont,
+                fontSize: '16px',
+                letterSpacing: '0.02em',
+                whiteSpace: 'nowrap',
+              }}>
+                {t.welcomeTitle}
+              </span>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleCloseWelcome(); }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleCloseWelcome(); }}
+                aria-label={t.close}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--titlebar-fg)',
+                  fontFamily: winFont,
+                  fontSize: '15px',
+                  cursor: 'pointer',
+                  padding: '2px 10px',
+                  lineHeight: 1.3,
+                  touchAction: 'manipulation',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                [ {t.close.toLowerCase()} ]
+              </button>
+            </div>
+
+            {/* System notification style — structured, left-aligned, terminal feel */}
+            <div style={{ padding: '22px 24px 18px', fontSize: 'clamp(1rem, 2.6vw, 1.2rem)' }}>
+              {/* Top: smiley left + status right */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <span aria-hidden style={{
+                  display: 'inline-block',
+                  width: '4em',
+                  fontSize: 'clamp(1.8rem, 5vw, 2.4rem)',
+                  color: 'var(--popup-fg)',
+                  lineHeight: 1,
+                }}>
+                  {smileyExpression === 'blink' ? '(－‿－)' : smileyExpression === 'open-left' ? '(◔‿◔)' : '(◕‿◕)'}
+                </span>
+                <span style={{ color: 'var(--panel-muted)', fontSize: '0.78em', letterSpacing: '0.12em', display: 'inline-flex', alignItems: 'center', gap: '7px' }}>
+                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 6px #22c55e, 0 0 14px #22c55e50' }} />
+                  {t.msgOnline.toUpperCase()}
                 </span>
               </div>
-              <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', width: '100%' }}>
-                <button
-                  onClick={handleWelcomeOk}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleWelcomeOk(); }}
-                  className="win-btn"
-                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
-                >
-                  {scrambled.ok || t.ok}
-                </button>
-                <button
-                  onClick={handleCloseWelcome}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleCloseWelcome(); }}
-                  className="win-btn"
-                  style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
-                >
-                  {scrambled.close || t.close}
-                </button>
+              {/* Separator */}
+              <div aria-hidden style={{ borderTop: '1px solid var(--panel-border)', marginBottom: '16px' }} />
+              {/* Message — BIOS highlight style (inverted bg) */}
+              <div style={{
+                color: 'var(--popup-bg)',
+                background: 'var(--popup-fg)',
+                lineHeight: 1.75,
+                marginBottom: '10px',
+                padding: '12px 16px',
+              }}>
+                &ldquo;{welcomeMessage}&rdquo;{' '}<span style={{ float: 'right' }}><a href="https://www.instagram.com/manyari___/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none', opacity: 0.6 }} onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }} onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.6'; }}>— flavio</a></span>
               </div>
             </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }} onMouseDown={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
-                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }}>
-                  <rect x="2" y="5" width="20" height="14" fill="#ffffcc" stroke="var(--win95-dark, #808080)" strokeWidth="1" />
-                  <path d="M2 5 L12 13 L22 5" stroke="var(--win95-dark, #808080)" strokeWidth="1" fill="none" />
-                  <rect x="3" y="6" width="18" height="12" fill="none" stroke="#fff" strokeWidth="0.5" />
-                </svg>
-                <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', textAlign: 'left', lineHeight: '1.5' }}>
-                  {scrambled.subscribePrompt || t.subscribePrompt}
-                </span>
-              </div>
-              <form onSubmit={handleSubscribe} style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%' }}>
-                <input
-                  ref={emailInputRef}
-                  type="email"
-                  className="win95-input"
-                  value={subscribeEmail}
-                  onChange={(e) => setSubscribeEmail(e.target.value)}
-                  onClick={(e) => e.stopPropagation()}
-                  onMouseDown={(e) => e.stopPropagation()}
-                  onTouchStart={(e) => e.stopPropagation()}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && emailInputRef.current) {
-                      const rect = emailInputRef.current.getBoundingClientRect();
-                      lastClickPos.current = { x: rect.left + rect.width / 2, y: rect.top };
-                    }
-                  }}
-                  placeholder={t.emailPlaceholder}
-                  autoFocus
-                  style={{
-                    backgroundColor: '#fff',
-                    border: '2px inset var(--win95-dark, #808080)',
-                    color: '#000',
-                    padding: '8px 12px',
-                    fontFamily: '"MS Sans Serif", Arial, sans-serif',
-                    fontSize: '16px',
-                    outline: 'none',
-                    width: '100%',
-                    boxSizing: 'border-box',
-                  }}
-                />
-                <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                  <button
-                    type="submit"
-                    onClick={(e) => { lastClickPos.current = { x: e.clientX, y: e.clientY }; }}
-                    onTouchStart={(e) => { e.stopPropagation(); if (e.touches[0]) lastClickPos.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }; }}
-                    onTouchEnd={(e) => e.stopPropagation()}
-                    className="win-btn"
-                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', padding: '8px 24px', cursor: 'pointer', ...win95Button }}
-                  >
-                    {isSubscribed ? t.subscribed : (scrambled.confirm || t.confirm)}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleCloseWelcome}
-                    onTouchStart={(e) => e.stopPropagation()}
-                    onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleCloseWelcome(); }}
-                    className="win-btn"
-                    style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
-                  >
-                    {scrambled.cancel || t.cancel}
-                  </button>
-                </div>
-              </form>
-            </div>
-          )}
-        </Win95Popup>
+          </div>
+        </div>
       )}
 
-      {/* Subscribed confirmation popup */}
+      {/* Subscribed confirmation popup — neo-terminal flat */}
       {showSubscribedPopup && (
-        <Win95Popup
-          title="superself.exe"
-          onClose={() => { setShowSubscribedPopup(false); setShowNotification(true); }}
-          position={draggable.welcomePos}
-          width="280px"
-          windowId="welcome"
-          activeWindow={activeWindow}
-          onActivate={() => setActiveWindow('welcome')}
-          onDragStart={(e) => draggable.handleDragStart(e, 'welcome')}
-          isDragging={draggable.isDragging === 'welcome'}
+        <div
+          style={{
+            position: 'fixed',
+            top: 0, left: 0, right: 0, bottom: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            paddingTop: isMobile ? 'env(safe-area-inset-top, 20px)' : 0,
+            paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 20px)' : 0,
+            zIndex: activeWindow === 'welcome' ? 170 : 100,
+            pointerEvents: 'none',
+          }}
         >
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '14px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', width: '100%' }}>
-              <svg width="40" height="40" viewBox="0 0 32 32" fill="none" style={{ flexShrink: 0 }}>
-                <rect x="2" y="2" width="28" height="28" fill="var(--win95-bg, #c0c0c0)" stroke="var(--win95-dark, #808080)" strokeWidth="1" />
-                <rect x="3" y="3" width="26" height="26" fill="none" stroke="#fff" strokeWidth="1" />
-                <path d="M9 16 L14 21 L23 11" stroke="var(--nav-hover-fg, #000080)" strokeWidth="3" fill="none" strokeLinecap="square" />
-              </svg>
-              <span style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', lineHeight: '1.4' }}>
-                {t.subscribedMessage}
-              </span>
-            </div>
-            <button
-              onClick={() => { setShowSubscribedPopup(false); setShowNotification(true); }}
-              onMouseDown={(e) => e.stopPropagation()}
-              onTouchStart={(e) => e.stopPropagation()}
-              onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setShowSubscribedPopup(false); setShowNotification(true); }}
-              className="win-btn"
-              style={{ fontFamily: '"MS Sans Serif", Arial, sans-serif', fontSize: '11px', color: 'var(--win95-text, #000)', padding: '8px 0', width: '75px', minWidth: '75px', maxWidth: '75px', textAlign: 'center', cursor: 'pointer', ...win95Button }}
+          <div
+            className="popup-window"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={() => setActiveWindow('welcome')}
+            onTouchStart={() => setActiveWindow('welcome')}
+            style={{
+              backgroundColor: 'var(--popup-bg)',
+              border: '1px solid var(--panel-border)',
+              fontFamily: winFont,
+              fontSize: 'clamp(1.05rem, 2.8vw, 1.3rem)',
+              color: 'var(--popup-fg)',
+              width: '340px',
+              maxWidth: '88vw',
+              maxHeight: isMobile ? 'calc(100svh - 40px)' : undefined,
+              position: effectivePos('welcome').x || effectivePos('welcome').y ? 'fixed' : 'relative',
+              top: effectivePos('welcome').y || undefined,
+              left: effectivePos('welcome').x || undefined,
+              pointerEvents: 'auto',
+              overflow: isMobile ? 'hidden auto' : 'hidden',
+            }}
+          >
+            <div
+              onMouseDown={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'welcome'); }}
+              onTouchStart={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'welcome'); }}
+              style={{
+                background: 'var(--titlebar-bg)',
+                padding: '6px 10px',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                cursor: draggable.isDragging === 'welcome' ? 'grabbing' : 'grab',
+                touchAction: 'none',
+                borderBottom: '1px solid var(--panel-border)',
+              }}
             >
-              {t.ok}
-            </button>
+              <span style={{
+                color: 'var(--titlebar-fg)',
+                fontFamily: winFont,
+                fontSize: '16px',
+                letterSpacing: '0.02em',
+              }}>
+                superself.exe
+              </span>
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowSubscribedPopup(false); setShowNotification(true); }}
+                onMouseDown={(e) => e.stopPropagation()}
+                onTouchStart={(e) => e.stopPropagation()}
+                aria-label={t.close}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--titlebar-fg)',
+                  fontFamily: winFont,
+                  fontSize: '15px',
+                  cursor: 'pointer',
+                  padding: '2px 10px',
+                  lineHeight: 1.3,
+                  touchAction: 'manipulation',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                [ {t.close.toLowerCase()} ]
+              </button>
+            </div>
+            <div style={{ padding: '22px 22px 20px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '18px' }}>
+                <span aria-hidden style={{
+                  fontSize: 'clamp(1.6rem, 4vw, 2rem)',
+                  color: 'var(--popup-fg)',
+                  lineHeight: 1,
+                  flexShrink: 0,
+                }}>
+                  [✓]
+                </span>
+                <span style={{ color: 'var(--popup-fg)', flex: 1 }}>
+                  {t.subscribedMessage}
+                </span>
+              </div>
+              <div aria-hidden style={{ height: '1px', background: 'var(--panel-divider)', margin: '0 0 16px' }} />
+              <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={() => { setShowSubscribedPopup(false); setShowNotification(true); }}
+                  onMouseDown={(e) => e.stopPropagation()}
+                  onTouchStart={(e) => e.stopPropagation()}
+                  onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setShowSubscribedPopup(false); setShowNotification(true); }}
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--panel-border)',
+                    color: 'var(--popup-fg)',
+                    fontFamily: winFont,
+                    fontSize: 'inherit',
+                    padding: '6px 18px',
+                    cursor: 'pointer',
+                    touchAction: 'manipulation',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--popup-fg)'; e.currentTarget.style.color = 'var(--popup-bg)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--popup-fg)'; }}
+                >
+                  [ {t.ok.toLowerCase()} ]
+                </button>
+              </div>
+            </div>
           </div>
-        </Win95Popup>
+        </div>
       )}
 
       {/* About Panel */}
-      {activeSection === 'about' && (
+      {isOpen('about') && (
         <div
           style={{
             position: 'fixed',
@@ -965,109 +1467,146 @@ export default function Home() {
             display: 'flex',
             alignItems: 'flex-start',
             justifyContent: 'center',
-            paddingTop: 'clamp(180px, 28vh, 260px)',
-            zIndex: activeWindow === 'about' ? 160 : 90,
+            paddingTop: isMobile ? 'env(safe-area-inset-top, 20px)' : 'clamp(180px, 28vh, 260px)',
+            paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 20px)' : 0,
+            zIndex: isFocused('about') ? 160 : 90,
             pointerEvents: 'none',
           }}
         >
           <div
             className="popup-window"
             onClick={(e) => e.stopPropagation()}
-            onMouseDown={() => setActiveWindow('about')}
-            onTouchStart={() => setActiveWindow('about')}
+            onMouseDown={() => setOpenStack(stack => stack[stack.length - 1] === 'about' ? stack : [...stack.filter(s => s !== 'about'), 'about'])}
+            onTouchStart={() => setOpenStack(stack => stack[stack.length - 1] === 'about' ? stack : [...stack.filter(s => s !== 'about'), 'about'])}
             style={{
               ...popupTransition.getPopupStyle('about'),
-              backgroundColor: 'var(--win95-bg, #c0c0c0)',
-              border: '2px solid',
-              borderColor: 'var(--win95-highlight, #dfdfdf) var(--win95-shadow, #0a0a0a) var(--win95-shadow, #0a0a0a) var(--win95-highlight, #dfdfdf)',
-              boxShadow: '2px 2px 0 #000',
+              backgroundColor: 'var(--popup-bg)',
+              border: '1px solid var(--panel-border)',
               fontFamily: winFont,
-              fontSize: 'clamp(0.9rem, 2.5vw, 1.05rem)',
-              color: 'var(--win95-text, #000)',
-              width: '460px',
-              maxWidth: '82vw',
-              lineHeight: '1.7',
+              fontSize: 'clamp(1.05rem, 2.8vw, 1.3rem)',
+              color: 'var(--popup-fg)',
+              width: '480px',
+              maxWidth: '84vw',
+              maxHeight: isMobile ? 'calc(100svh - 40px)' : undefined,
+              lineHeight: '1.65',
               textAlign: 'left',
-              position: draggable.aboutPos.x || draggable.aboutPos.y ? 'fixed' : 'relative',
-              top: draggable.aboutPos.y || undefined,
-              left: draggable.aboutPos.x || undefined,
+              position: effectivePos('about').x || effectivePos('about').y ? 'fixed' : 'relative',
+              top: effectivePos('about').y || undefined,
+              left: effectivePos('about').x || undefined,
               pointerEvents: 'auto',
-              overflow: 'hidden',
+              overflow: isMobile ? 'hidden auto' : 'hidden',
             }}
           >
-            {/* Win95 Titlebar */}
+            {/* Flat titlebar */}
             <div
               onMouseDown={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'about'); }}
               onTouchStart={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'about'); }}
               style={{
-                background: 'var(--win95-title, linear-gradient(90deg, #000080, #1084d0))',
-                padding: '4px 6px',
+                background: 'var(--titlebar-bg)',
+                padding: '6px 10px',
                 display: 'flex',
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 cursor: draggable.isDragging === 'about' ? 'grabbing' : 'grab',
                 touchAction: 'none',
+                borderBottom: '1px solid var(--panel-border)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '5px', overflow: 'hidden', flex: 1 }}>
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ marginTop: '-1px', flexShrink: 0 }}>
-                  <rect x="1" y="3" width="14" height="10" fill="var(--win95-bg, #c0c0c0)" stroke="var(--win95-text, #000)" strokeWidth="1" />
-                  <rect x="3" y="5" width="10" height="6" fill="var(--nav-hover-fg, #000080)" />
-                  <rect x="0" y="12" width="16" height="3" fill="var(--win95-dark, #808080)" />
-                </svg>
-                <span style={{
-                  color: 'white',
-                  fontFamily: 'Segoe UI, Tahoma, sans-serif',
-                  fontSize: '13px',
-                  fontWeight: 600,
-                  whiteSpace: 'nowrap',
-                }}>
-                  {scrambled.about ? scrambled.about.replace('> ', '') + '.exe' : t.about.replace('> ', '') + '.exe'}
-                </span>
-              </div>
+              <span style={{
+                color: 'var(--titlebar-fg)',
+                fontFamily: winFont,
+                fontSize: '16px',
+                letterSpacing: '0.02em',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+              }}>
+                {(scrambled.about ? scrambled.about.replace('> ', '') : t.about.replace('> ', '')) + '.txt'}
+              </span>
               <button
-                onClick={(e) => { e.stopPropagation(); popupTransition.triggerClose('about'); setTimeout(() => { setActiveSection(null); draggable.resetPosition('about'); }, 300); }}
+                onClick={(e) => { e.stopPropagation(); popupTransition.triggerClose('about', getCurrentBox('about')); setTimeout(() => { setOpenStack(stack => stack.filter(s => s !== 'about')); }, 300); }}
                 onMouseDown={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
                 onTouchEnd={(e) => e.stopPropagation()}
+                aria-label={t.close}
                 style={{
-                  width: '22px',
-                  height: '20px',
-                  backgroundColor: 'var(--win95-bg, #c0c0c0)',
+                  background: 'transparent',
                   border: 'none',
-                  boxShadow: 'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf), inset -2px -2px 0 var(--win95-dark, #808080), inset 2px 2px 0 var(--win95-highlight, #dfdfdf)',
+                  color: 'var(--titlebar-fg)',
+                  fontFamily: winFont,
+                  fontSize: '15px',
                   cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: 0,
+                  padding: '2px 10px',
+                  lineHeight: 1.3,
                   touchAction: 'manipulation',
+                  whiteSpace: 'nowrap',
                 }}
               >
-                <svg width="10" height="9" viewBox="0 0 8 7" fill="none">
-                  <path d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z" fill="var(--win95-text, #000)" />
-                </svg>
+                [ {t.close.toLowerCase()} ]
               </button>
             </div>
-            <div style={{ padding: '12px', overflow: 'hidden', animation: 'fadeIn 0.4s ease-out' }}>
-              {/* Sunken text area — Win95 inset panel */}
-              <div style={{
-                backgroundColor: 'var(--win95-highlight, #fff)',
-                border: '2px solid',
-                borderColor: 'var(--win95-dark, #808080) var(--win95-highlight, #dfdfdf) var(--win95-highlight, #dfdfdf) var(--win95-dark, #808080)',
-                padding: '16px 18px',
-              }}>
-                {/* Bio — "superself" flows inline with text */}
-                <p style={{ margin: 0, wordBreak: 'break-word', color: '#000' }}>
-                  <span style={{ backgroundColor: 'var(--selection-fg, #000080)', color: '#fff', padding: '2px 6px', fontWeight: 'bold', fontSize: '1.05em' }}>superself</span>{' '}
-                  {scrambled.aboutBio || t.aboutBio}
-                </p>
-              </div>
-              {/* CTA — below the inset panel */}
-              <p style={{ textAlign: 'center', margin: '12px 0 0', fontSize: '0.9em' }}>
-                <span style={{ textDecoration: 'underline', cursor: 'default' }}>
-                  {scrambled.aboutCta || t.aboutCta}
-                </span>
+            <div style={{ padding: '20px 22px', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
+              {/* ## about */}
+              <div style={{ color: 'var(--panel-prompt)', marginBottom: '6px', letterSpacing: '0.04em' }}>## {t.about.replace('> ', '')}</div>
+              <p style={{ margin: 0, marginBottom: '14px', wordBreak: 'break-word', color: 'var(--popup-fg)' }}>
+                <span style={{ color: 'var(--panel-prompt)', marginRight: '8px' }}>▸</span>
+                <span style={{ color: 'var(--popup-fg)', fontWeight: 'bold' }}>superself</span>{' '}
+                {scrambled.aboutBio || t.aboutBio}
+              </p>
+              {/* ASCII divider */}
+              <div aria-hidden style={{
+                height: '1px',
+                background: 'var(--panel-divider)',
+                margin: '16px 0',
+              }} />
+              {/* ## subscribe */}
+              <div style={{ color: 'var(--panel-prompt)', marginBottom: '8px', letterSpacing: '0.04em' }}>## {t.subscribe.toLowerCase()}</div>
+              <form onSubmit={handleSubscribe} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap' }}>
+                <span style={{ color: 'var(--panel-prompt)', flexShrink: 0 }}>▸</span>
+                <input
+                  type="email"
+                  value={subscribeEmail}
+                  onChange={(e) => setSubscribeEmail(e.target.value)}
+                  onClick={(e) => {
+                    const rect = (e.currentTarget as HTMLInputElement).getBoundingClientRect();
+                    lastClickPos.current = { x: rect.left + rect.width / 2, y: rect.top };
+                  }}
+                  placeholder={t.emailPlaceholder}
+                  style={{
+                    flex: 1,
+                    minWidth: 0,
+                    background: 'transparent',
+                    border: '1px solid var(--panel-border)',
+                    color: 'var(--popup-fg)',
+                    fontFamily: winFont,
+                    fontSize: 'inherit',
+                    padding: '6px 10px',
+                    outline: 'none',
+                  }}
+                  className="win95-input"
+                />
+                <button
+                  type="submit"
+                  style={{
+                    background: 'transparent',
+                    border: '1px solid var(--panel-border)',
+                    color: 'var(--popup-fg)',
+                    fontFamily: winFont,
+                    fontSize: 'inherit',
+                    padding: '6px 14px',
+                    cursor: 'pointer',
+                    touchAction: 'manipulation',
+                    flexShrink: 0,
+                    whiteSpace: 'nowrap',
+                  }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--popup-fg)'; e.currentTarget.style.color = 'var(--popup-bg)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--popup-fg)'; }}
+                >
+                  [ {t.confirm.toLowerCase()} ]
+                </button>
+              </form>
+              <p style={{ margin: '12px 0 0', fontSize: '0.9em', color: 'var(--panel-muted)' }}>
+                {scrambled.aboutCta || t.aboutCta}
               </p>
             </div>
           </div>
@@ -1075,31 +1614,38 @@ export default function Home() {
       )}
 
       {/* Shop Panel */}
-      {activeSection === 'shop' && (
+      {isOpen('shop') && (
         <Shop
           language={language}
-          onClose={() => { popupTransition.triggerClose('shop'); setTimeout(() => { setActiveSection(null); draggable.resetPosition('shop'); }, 300); }}
-          position={draggable.shopPos}
-          isActive={activeWindow === 'shop'}
-          onActivate={() => setActiveWindow('shop')}
+          onClose={() => { popupTransition.triggerClose('shop', getCurrentBox('shop')); setTimeout(() => { setOpenStack(stack => stack.filter(s => s !== 'shop')); }, 300); }}
+          position={effectivePos('shop')}
+          isActive={isFocused('shop')}
+          onActivate={() => setOpenStack(stack => stack[stack.length - 1] === 'shop' ? stack : [...stack.filter(s => s !== 'shop'), 'shop'])}
           onDragStart={(e) => draggable.handleDragStart(e, 'shop')}
           isDragging={draggable.isDragging === 'shop'}
           transitionStyle={popupTransition.getPopupStyle('shop')}
         />
       )}
 
-      {/* Mixes Panel */}
-      {activeSection === 'mixes' && (
-        <Mixes
-          language={language}
-          onClose={() => { popupTransition.triggerClose('mixes'); setTimeout(() => { setActiveSection(null); draggable.resetPosition('mixes'); }, 300); }}
-          position={draggable.mixesPos}
-          isActive={activeWindow === 'mixes'}
-          onActivate={() => setActiveWindow('mixes')}
-          onDragStart={(e) => draggable.handleDragStart(e, 'mixes')}
-          isDragging={draggable.isDragging === 'mixes'}
-          transitionStyle={popupTransition.getPopupStyle('mixes')}
-        />
+      {/* Mixes Panel — always mounted so SoundCloud iframe stays alive when panel closed */}
+      {showMainContent && (
+        <div style={{
+          opacity: isOpen('mixes') ? 1 : 0,
+          pointerEvents: isOpen('mixes') ? 'auto' : 'none',
+          position: isOpen('mixes') ? undefined : 'fixed',
+          top: isOpen('mixes') ? undefined : '-200vh',
+        }}>
+          <Mixes
+            language={language}
+            onClose={() => { popupTransition.triggerClose('mixes', getCurrentBox('mixes')); setTimeout(() => { setOpenStack(stack => stack.filter(s => s !== 'mixes')); }, 300); }}
+            position={effectivePos('mixes')}
+            isActive={isFocused('mixes')}
+            onActivate={() => setOpenStack(stack => stack[stack.length - 1] === 'mixes' ? stack : [...stack.filter(s => s !== 'mixes'), 'mixes'])}
+            onDragStart={(e) => draggable.handleDragStart(e, 'mixes')}
+            isDragging={draggable.isDragging === 'mixes'}
+            transitionStyle={popupTransition.getPopupStyle('mixes')}
+          />
+        </div>
       )}
 
       {/* Email copied toast */}
@@ -1260,7 +1806,17 @@ export default function Home() {
           transitionDelay: entrance.showFooter ? '4.5s' : '0s',
         }}
       >
-        <span style={{ fontFamily: winFont, fontSize: 'clamp(0.6rem, 1.2vw, 0.75rem)', color: 'var(--text-muted, rgba(255,255,255,0.35))', whiteSpace: 'nowrap' }}>
+        <span
+          onClick={() => {
+            const count = (window as Record<string, unknown>).__biosClicks as number || 0;
+            (window as Record<string, unknown>).__biosClicks = count + 1;
+            if (count + 1 >= 5) {
+              (window as Record<string, unknown>).__biosClicks = 0;
+              setPhase('error');
+            }
+          }}
+          style={{ fontFamily: winFont, fontSize: 'clamp(0.6rem, 1.2vw, 0.75rem)', color: 'var(--text-muted, rgba(255,255,255,0.35))', whiteSpace: 'nowrap', cursor: 'default' }}
+        >
           {'{ superself '}<Spinner />{' 2026 }'}
         </span>
       </div>
@@ -1341,6 +1897,7 @@ export default function Home() {
           </div>
         </div>
       )}
+
     </main>
   );
 }

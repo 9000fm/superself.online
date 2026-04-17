@@ -61,6 +61,10 @@ export const shopTranslations = {
     currency: 'S/.',
     selectSize: 'Talla',
     sizes: ['S', 'M', 'L', 'XL'],
+    catalogLabel: 'catálogo',
+    priceLabel: 'precio',
+    sessionsLabel: 'sesiones',
+    selectHint: 'seleccionar',
   },
   EN: {
     shopTitle: 'shop.exe',
@@ -69,6 +73,10 @@ export const shopTranslations = {
     currency: 'S/.',
     selectSize: 'Size',
     sizes: ['S', 'M', 'L', 'XL'],
+    catalogLabel: 'catalog',
+    priceLabel: 'price',
+    sessionsLabel: 'sessions',
+    selectHint: 'select item',
   },
   JP: {
     shopTitle: '店舗.exe',
@@ -77,6 +85,10 @@ export const shopTranslations = {
     currency: 'S/.',
     selectSize: 'サイズ',
     sizes: ['S', 'M', 'L', 'XL'],
+    catalogLabel: 'カタログ',
+    priceLabel: '価格',
+    sessionsLabel: 'セッション',
+    selectHint: '選択',
   },
 } as const;
 

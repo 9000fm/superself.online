@@ -37,6 +37,13 @@ export type TranslationKeys = {
   errorException: string;
   errorTerminated: string;
   errorPressKey: string;
+  welcomeMessages: readonly string[];
+  msgHeader: string;
+  msgFrom: string;
+  msgTo: string;
+  msgStatus: string;
+  msgVisitor: string;
+  msgOnline: string;
 };
 
 export const translations: Record<Language, TranslationKeys> = {
@@ -52,7 +59,7 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: 'Se encontro una invitacion pendiente.',
     ok: 'Abrir',
     aboutTitle: 'acerca.txt',
-    aboutBio: '(2023) es un colectivo y sello de música electrónica nacido en Lima, Perú. Surge como un espacio para compartir sonidos que realmente nos gustan y sentimos cercanos. Aquí publicamos mezclas, lanzamientos propios y una selección de música que nos representa.',
+    aboutBio: '(2023) es un colectivo y sello de música electrónica nacido en Lima, Perú. Surge como un espacio para compartir sonidos que realmente nos mueven. Aquí publicamos mezclas, lanzamientos propios y música que nos representa.',
     aboutCta: 'Déjanos tu mail para recibir novedades.',
     close: 'Cerrar',
     shopTitle: 'tienda.exe',
@@ -69,7 +76,7 @@ export const translations: Record<Language, TranslationKeys> = {
     confirm: 'Enviar',
     cancel: 'Cancelar',
     mixes: '> sesiones',
-    mixesTitle: 'sesiones.exe',
+    mixesTitle: 'sesiones.m3u',
     skip: 'saltar',
     warningTitle: 'Mensaje del sistema',
     warningMessage: 'El tamano de pantalla puede afectar la experiencia.\nGira el dispositivo o redimensiona la ventana.',
@@ -77,6 +84,15 @@ export const translations: Record<Language, TranslationKeys> = {
     errorException: 'Ha ocurrido una excepcion fatal 0E en',
     errorTerminated: 'La aplicacion actual sera terminada.',
     errorPressKey: 'Presiona cualquier tecla para continuar',
+    welcomeMessages: [
+      'si llegaste hasta aqui, gracias por tu visita. bienvenid@. ✦',
+    ],
+    msgHeader: 'MENSAJE',
+    msgFrom: 'DE',
+    msgTo: 'PARA',
+    msgStatus: 'ESTADO',
+    msgVisitor: 'visitante',
+    msgOnline: 'en linea',
   },
   EN: {
     welcome: 'WELCOME.',
@@ -90,7 +106,7 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: 'Pending invitation found.',
     ok: 'Open',
     aboutTitle: 'about.txt',
-    aboutBio: '(2023) is an electronic music collective and label born in Lima, Peru. It emerged as a space to share sounds we truly enjoy and feel close to. Here we publish mixes, original releases and a selection of music that represents us.',
+    aboutBio: '(2023) is an electronic music collective and label born in Lima, Peru. It emerged as a space to share sounds that truly move us. Here we publish mixes, original releases and music that represents us.',
     aboutCta: 'Leave your email to get updates.',
     close: 'Close',
     shopTitle: 'shop.exe',
@@ -115,6 +131,15 @@ export const translations: Record<Language, TranslationKeys> = {
     errorException: 'A fatal exception 0E has occurred at',
     errorTerminated: 'The current application will be terminated.',
     errorPressKey: 'Press any key to continue',
+    welcomeMessages: [
+      'if you made it here, thank you for visiting. welcome. ✦',
+    ],
+    msgHeader: 'MESSAGE',
+    msgFrom: 'FROM',
+    msgTo: 'TO',
+    msgStatus: 'STATUS',
+    msgVisitor: 'visitor',
+    msgOnline: 'online',
   },
   JP: {
     welcome: 'ようこそ',
@@ -128,7 +153,7 @@ export const translations: Record<Language, TranslationKeys> = {
     welcomeMessage: '保留中の招待があります。',
     ok: '開く',
     aboutTitle: '概要.txt',
-    aboutBio: '(2023) はリマ、ペルー発の電子音楽コレクティブ＆レーベル。本当に好きで近いと感じるサウンドを共有する場として生まれた。ここではミックス、自主リリース、そして自分たちを表す音楽のセレクションを発信中。',
+    aboutBio: '(2023) はリマ、ペルー発の電子音楽コレクティブ＆レーベル。本当に心を動かすサウンドを共有する場として生まれた。ここではミックス、自主リリース、そして自分たちを表す音楽を発信中。',
     aboutCta: 'メールを残して最新情報を受け取ろう。',
     close: '閉じる',
     shopTitle: '店舗.exe',
@@ -153,6 +178,15 @@ export const translations: Record<Language, TranslationKeys> = {
     errorException: '致命的な例外 0E が発生しました',
     errorTerminated: '現在のアプリケーションは終了します。',
     errorPressKey: '続行するには何かキーを押してください',
+    welcomeMessages: [
+      'ここまで来てくれて、ありがとう。ようこそ。✦',
+    ],
+    msgHeader: 'メッセージ',
+    msgFrom: '送信者',
+    msgTo: '宛先',
+    msgStatus: '状態',
+    msgVisitor: '訪問者',
+    msgOnline: 'オンライン',
   },
 };
 

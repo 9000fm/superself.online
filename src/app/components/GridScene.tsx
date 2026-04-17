@@ -63,6 +63,17 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
     const MAX_PARTICLES = 150;
     const SPAWN_RATE = 80; // ms between spawns (starts slow, fills up over ~12s)
 
+    // Tunnel fly — Lévy flight creature
+    const flyState = {
+      active: false,
+      x: 0.5, y: 0.5, depth: 0.2,
+      vx: 0, vy: 0, vDepth: 0,
+      lifeLeft: 0,
+      nextMove: 0,
+      lastGone: 0,
+      nextWait: 30000 + Math.random() * 10000, // first fly appears 30-40s after load
+    };
+
     const draw = () => {
       const canvas = canvasRef.current;
       if (!canvas) return;
@@ -293,6 +304,83 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
         }
 
         ctx.globalAlpha = 1;
+      }
+
+      // ─── Tunnel fly (Lévy flight) ───
+      // A tiny creature that appears rarely, zips around erratically, then vanishes.
+      if (particleOpacity > 0.5) {
+        if (!flyState.active && now - flyState.lastGone > flyState.nextWait) {
+          // Spawn at a random depth inside the tunnel
+          flyState.active = true;
+          flyState.x = 0.3 + Math.random() * 0.4; // horizontal position (0-1)
+          flyState.y = 0.3 + Math.random() * 0.4; // vertical position (0-1)
+          flyState.depth = 0.15 + Math.random() * 0.3;
+          flyState.vx = 0;
+          flyState.vy = 0;
+          flyState.lifeLeft = 2000 + Math.random() * 3000; // 2-5s lifespan
+          flyState.nextMove = 0;
+        }
+
+        if (flyState.active) {
+          flyState.lifeLeft -= dt * 1000;
+          flyState.nextMove -= dt * 1000;
+
+          // Fly behavior: prioritize forward/backward (depth) movement.
+          // Quick bursts with pauses between. Casual, rare, fast.
+          if (flyState.nextMove <= 0) {
+            const roll = Math.random();
+            if (roll < 0.5) {
+              // Forward burst (deeper into tunnel)
+              flyState.vx = (Math.random() - 0.5) * 0.006;
+              flyState.vy = (Math.random() - 0.5) * 0.006;
+              flyState.vDepth = -(0.05 + Math.random() * 0.08);
+            } else if (roll < 0.8) {
+              // Backward burst (toward viewer)
+              flyState.vx = (Math.random() - 0.5) * 0.006;
+              flyState.vy = (Math.random() - 0.5) * 0.006;
+              flyState.vDepth = 0.04 + Math.random() * 0.07;
+            } else {
+              // Lateral jitter — quick side movement
+              flyState.vx = (Math.random() - 0.5) * 0.025;
+              flyState.vy = (Math.random() - 0.5) * 0.025;
+              flyState.vDepth = (Math.random() - 0.5) * 0.005;
+            }
+            // Pauses: mostly long (casual), occasionally short (nervous burst)
+            flyState.nextMove = Math.random() < 0.3 ? 80 + Math.random() * 120 : 400 + Math.random() * 800;
+          }
+
+          // Strong damping — fly stops quickly between bursts
+          flyState.vx *= 0.88;
+          flyState.vy *= 0.88;
+          flyState.vDepth *= 0.85;
+          flyState.x += flyState.vx;
+          flyState.y += flyState.vy;
+          flyState.depth += flyState.vDepth;
+
+          // Clamp inside tunnel
+          flyState.x = Math.max(0.15, Math.min(0.85, flyState.x));
+          flyState.y = Math.max(0.15, Math.min(0.85, flyState.y));
+          flyState.depth = Math.max(0.03, Math.min(0.85, flyState.depth));
+
+          // Project to screen coordinates using tunnel perspective
+          const fd = depthEase(1 - flyState.depth);
+          const fx = lerp(lerp(oL, oR, flyState.x), lerp(iL, iR, flyState.x), fd);
+          const fy = lerp(lerp(oT, oB, flyState.y), lerp(iT, iB, flyState.y), fd);
+          const fSize = 1 + flyState.depth * 6;
+          const fAlpha = particleOpacity * Math.min(1, flyState.lifeLeft / 500) * 0.7;
+
+          // Draw fly
+          ctx.fillStyle = `rgba(${fgR}, ${fgG}, ${fgB}, ${fAlpha.toFixed(2)})`;
+          ctx.beginPath();
+          ctx.arc(fx, fy, fSize, 0, Math.PI * 2);
+          ctx.fill();
+
+          if (flyState.lifeLeft <= 0) {
+            flyState.active = false;
+            flyState.lastGone = now;
+            flyState.nextWait = 8000 + Math.random() * 20000; // 8-28s until next appearance
+          }
+        }
       }
     };
 

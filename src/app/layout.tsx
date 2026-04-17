@@ -39,7 +39,7 @@ export const viewport = {
   viewportFit: 'cover',
 };
 
-const themeScript = `var t=localStorage.getItem('theme');if(t==='light')t='color';if(t)document.documentElement.dataset.theme=t;var c=localStorage.getItem('superself-color');if(c){document.documentElement.style.setProperty('--user-color',c);document.documentElement.style.setProperty('--background',c)}var f=localStorage.getItem('superself-fg');if(f)document.documentElement.style.setProperty('--foreground',f);`;
+const themeScript = `var t=localStorage.getItem('theme');if(t==='light')t='color';if(!t)t='color';document.documentElement.dataset.theme=t;var c=localStorage.getItem('superself-color')||'#2D2D2D';var f=localStorage.getItem('superself-fg')||'#4488FF';if(t==='color'){document.documentElement.style.setProperty('--user-color',c);document.documentElement.style.setProperty('--background',c);document.documentElement.style.setProperty('--foreground',f);}`;
 
 export default function RootLayout({
   children,

@@ -22,6 +22,17 @@
   --nav-hover-bg: #ffffff;
   --nav-hover-fg: #000000;
   --nav-hover-fg-contrast: #000000;
+  /* neo-terminal popup tokens — popup uses INVERTED theme colors */
+  --popup-bg: var(--foreground);
+  --popup-fg: var(--background);
+  --panel-border: rgba(0,0,0,0.22);
+  --panel-divider: rgba(0,0,0,0.14);
+  --panel-prompt: rgba(0,0,0,0.55);
+  --panel-muted: rgba(0,0,0,0.45);
+  --titlebar-bg: var(--background);
+  --titlebar-fg: var(--foreground);
+  --titlebar-border: rgba(255,255,255,0.35);
+  --flash-color: #ffffff;
 }
 
 /* Color theme — user-customizable background via --user-color */
@@ -45,6 +56,15 @@
   --nav-hover-bg: #ffffff;
   --nav-hover-fg: var(--user-color, #0000FF);
   --nav-hover-fg-contrast: var(--user-color, #0000FF);
+  /* neo-terminal popup tokens — popup uses INVERTED theme colors (palette swap) */
+  --popup-bg: var(--foreground);
+  --popup-fg: var(--background);
+  --panel-border: rgba(0,0,0,0.28);
+  --panel-divider: rgba(0,0,0,0.18);
+  --panel-prompt: rgba(0,0,0,0.6);
+  --panel-muted: rgba(0,0,0,0.5);
+  --titlebar-bg: var(--background);
+  --titlebar-fg: var(--foreground);
 }
 
 /* White theme — minimal, clean */
@@ -71,6 +91,15 @@
   --nav-hover-bg: #e8e8e8;
   --nav-hover-fg: #000000;
   --nav-hover-fg-contrast: #000000;
+  /* neo-terminal popup tokens — popup uses INVERTED theme (popup bg will be BLACK) */
+  --popup-bg: var(--foreground);
+  --popup-fg: var(--background);
+  --panel-border: rgba(255,255,255,0.22);
+  --panel-divider: rgba(255,255,255,0.14);
+  --panel-prompt: rgba(255,255,255,0.55);
+  --panel-muted: rgba(255,255,255,0.45);
+  --titlebar-bg: var(--background);
+  --titlebar-fg: var(--foreground);
 }
 
 @theme inline {
@@ -113,6 +142,19 @@ body {
   transition: background-color 300ms ease, color 300ms ease;
 }
 
+/* Custom pixel-arrow cursor — desktop only (pointer: fine). Mobile keeps native. */
+@media (pointer: fine) {
+  body {
+    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='22' viewBox='0 0 16 22'><path d='M1 1 L1 15 L4 12 L6 18 L8 17 L6 11 L10 11 Z' fill='%23ffffff' stroke='%23000000' stroke-width='1' stroke-linejoin='miter'/></svg>") 0 0, default;
+  }
+  button, a, [role="button"], .nav-cli, .social-icon, .theme-toggle-btn, select, input[type="submit"] {
+    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='16' height='22' viewBox='0 0 16 22'><path d='M1 1 L1 15 L4 12 L6 18 L8 17 L6 11 L10 11 Z' fill='%23000000' stroke='%23ffffff' stroke-width='1' stroke-linejoin='miter'/></svg>") 0 0, pointer;
+  }
+  input[type="text"], input[type="email"], textarea {
+    cursor: text;
+  }
+}
+
 .font-terminal {
   font-family: var(--font-terminal), monospace;
 }
@@ -150,6 +192,12 @@ body {
 
 :focus-visible {
   outline: 2px solid white;
+  outline-offset: 2px;
+}
+
+/* Focus outline inside inverted popups uses popup-fg for proper contrast */
+.popup-window :focus-visible {
+  outline: 2px solid var(--popup-fg, white);
   outline-offset: 2px;
 }
 
@@ -212,6 +260,13 @@ body {
   100% { opacity: 1; }
 }
 
+/* EQ wave bars — indicates audio is playing */
+@keyframes eqBar1 { 0%,100% { height: 25%; } 50% { height: 85%; } }
+@keyframes eqBar2 { 0%,100% { height: 55%; } 50% { height: 15%; } }
+@keyframes eqBar3 { 0%,100% { height: 35%; } 50% { height: 90%; } }
+@keyframes eqBar4 { 0%,100% { height: 65%; } 50% { height: 25%; } }
+@keyframes eqBar5 { 0%,100% { height: 20%; } 50% { height: 75%; } }
+
 @keyframes fadeInUp {
   0% { opacity: 0; transform: translateY(10px) translateX(-50%); }
   100% { opacity: 1; transform: translateY(0) translateX(-50%); }
@@ -220,6 +275,33 @@ body {
 @keyframes scaleIn {
   0% { opacity: 0; transform: scale(0.95); }
   100% { opacity: 1; transform: scale(1); }
+}
+
+/* Frame reveal during dissolution — gradual ramp so center rect (highest internal alpha)
+   appears as faint glow first, grid lines follow. No flat delay = no black rectangle gap.
+   Works on freshly-mounted elements (animation, not transition). */
+@keyframes frameReveal {
+  0%    { opacity: 0; }
+  12%   { opacity: 0.04; }
+  25%   { opacity: 0.12; }
+  40%   { opacity: 0.3; }
+  60%   { opacity: 0.55; }
+  80%   { opacity: 0.8; }
+  100%  { opacity: 1; }
+}
+
+/* Flashbang overlay — foreground color flash. Instant peak, long hold, slow cinematic
+   recovery. Grid/tunnel emerge underneath as opacity fades. No filter = no perf hit. */
+@keyframes flashbangBurn {
+  0%    { opacity: 0; }
+  2%    { opacity: 1; }
+  32%   { opacity: 1; }
+  46%   { opacity: 0.75; }
+  58%   { opacity: 0.45; }
+  70%   { opacity: 0.2; }
+  82%   { opacity: 0.08; }
+  92%   { opacity: 0.02; }
+  100%  { opacity: 0; }
 }
 
 /* ============================================
@@ -340,7 +422,7 @@ button:hover .nav-cursor {
    ============================================ */
 
 .win95-input::placeholder {
-  color: #808080;
+  color: var(--panel-muted, #808080);
   opacity: 1;
 }
 

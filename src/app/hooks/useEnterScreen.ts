@@ -197,6 +197,7 @@ export function useEnterScreen({ phase, onEnter }: UseEnterScreenProps): UseEnte
   const isFirstWord = useRef(true);
   const pendingEnterRef = useRef(false);
   const isResolved = useRef(false); // true when current word is fully resolved and holding
+  const hasTriggered = useRef(false); // guard: once enter fired, ignore all subsequent calls
 
   const cleanup = useCallback(() => {
     activeRef.current = false;
@@ -208,8 +209,10 @@ export function useEnterScreen({ phase, onEnter }: UseEnterScreenProps): UseEnte
 
   const handleEnter = useCallback(() => {
     if (phase !== 'enter') return;
+    if (hasTriggered.current) return; // already entering — ignore re-triggers
     if (isResolved.current) {
       // Word is already resolved — go immediately
+      hasTriggered.current = true;
       cleanup();
       onEnter();
     } else {
@@ -231,6 +234,8 @@ export function useEnterScreen({ phase, onEnter }: UseEnterScreenProps): UseEnte
   // Main cycling
   useEffect(() => {
     if (phase !== 'enter') { cleanup(); setDisplayText(''); return; }
+    // Entering the enter phase fresh — reset trigger guard
+    hasTriggered.current = false;
 
     activeRef.current = true;
     isFirstWord.current = true;
@@ -255,7 +260,8 @@ export function useEnterScreen({ phase, onEnter }: UseEnterScreenProps): UseEnte
         if (!activeRef.current) return;
         isResolved.current = true;
         // If user clicked during scramble, trigger enter now
-        if (pendingEnterRef.current) {
+        if (pendingEnterRef.current && !hasTriggered.current) {
+          hasTriggered.current = true;
           cleanup();
           onEnter();
           return;

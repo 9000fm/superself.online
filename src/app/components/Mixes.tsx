@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { mixes } from '../data/mixes';
 import type { Language } from '../types';
-import { WIN_FONT, WIN95_STYLES, SCRAMBLE_CHARS } from '../constants';
+import { WIN_FONT, SCRAMBLE_CHARS } from '../constants';
 import { translations } from '../translations';
 
 interface MixesProps {
@@ -28,9 +28,9 @@ export default function Mixes({
   transitionStyle,
 }: MixesProps) {
   const [isMobile, setIsMobile] = useState(false);
+  const [loadedIframes, setLoadedIframes] = useState<Record<number, boolean>>({});
   const t = translations[language];
 
-  // Scramble effect state
   const prevLangRef = useRef<Language>(language);
   const [scrambledTitle, setScrambledTitle] = useState('');
 
@@ -41,7 +41,6 @@ export default function Mixes({
     return () => window.removeEventListener('resize', check);
   }, []);
 
-  // Language change scramble effect
   useEffect(() => {
     if (prevLangRef.current !== language) {
       prevLangRef.current = language;
@@ -98,6 +97,8 @@ export default function Mixes({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
+        paddingTop: isMobile ? 'env(safe-area-inset-top, 20px)' : 0,
+        paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 20px)' : 0,
         zIndex: isActive ? 160 : 90,
         pointerEvents: 'none',
       }}
@@ -109,103 +110,157 @@ export default function Mixes({
         onClick={(e) => e.stopPropagation()}
         style={{
           ...transitionStyle,
-          backgroundColor: 'var(--win95-bg, #c0c0c0)',
-          border: '2px solid',
-          borderColor: 'var(--win95-highlight, #dfdfdf) var(--win95-shadow, #0a0a0a) var(--win95-shadow, #0a0a0a) var(--win95-highlight, #dfdfdf)',
-          boxShadow: '2px 2px 0 #000',
+          backgroundColor: 'var(--popup-bg)',
+          border: '1px solid var(--panel-border)',
           fontFamily: WIN_FONT,
-          color: 'var(--win95-text, #000)',
-          width: isMobile ? '92vw' : 'clamp(380px, 32vw, 480px)',
+          color: 'var(--popup-fg)',
+          width: isMobile ? '92vw' : 'clamp(400px, 40vw, 520px)',
           maxWidth: '92vw',
+          maxHeight: isMobile ? 'calc(100svh - 40px)' : undefined,
           position: position.x || position.y ? 'fixed' : 'relative',
           top: position.y || undefined,
           left: position.x || undefined,
           pointerEvents: 'auto',
-          overflow: 'hidden',
+          overflow: isMobile ? 'hidden auto' : 'hidden',
         }}
       >
-        {/* Win95 Title Bar */}
+        {/* Flat titlebar */}
         <div
           onMouseDown={(e) => { if (!isMobile && onDragStart) { e.preventDefault(); onDragStart(e); } }}
+          onTouchStart={(e) => { if (onDragStart) { onDragStart(e); } }}
           style={{
-            background: WIN95_STYLES.titlebarGradient,
-            padding: '4px 6px',
+            background: 'var(--titlebar-bg)',
+            padding: '6px 10px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'space-between',
             cursor: isMobile ? 'default' : (isDragging ? 'grabbing' : 'grab'),
+            borderBottom: '1px solid var(--panel-border)',
+            touchAction: 'none',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-            {/* Music note icon */}
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="none" style={{ marginTop: '-1px' }}>
-              <path d="M6 2v9a3 3 0 1 0 2 0V4h4V2H6z" fill="#fff" stroke="var(--win95-text, #000)" strokeWidth="0.5"/>
-            </svg>
-            <span style={{
-              color: 'white',
-              fontFamily: 'Segoe UI, Tahoma, sans-serif',
-              fontSize: '13px',
-              fontWeight: 600,
-            }}>
-              {scrambledTitle || t.mixesTitle}
-            </span>
-          </div>
+          <span style={{
+            color: 'var(--titlebar-fg)',
+            fontFamily: WIN_FONT,
+            fontSize: '16px',
+            letterSpacing: '0.02em',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            flex: 1,
+          }}>
+            {scrambledTitle || t.mixesTitle}
+          </span>
           <button
             onClick={(e) => { e.stopPropagation(); onClose(); }}
+            onMouseDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            aria-label={t.close}
             style={{
-              width: '22px',
-              height: '20px',
-              backgroundColor: 'var(--win95-bg, #c0c0c0)',
+              background: 'transparent',
               border: 'none',
-              boxShadow: 'inset -1px -1px 0 var(--win95-shadow, #0a0a0a), inset 1px 1px 0 var(--win95-highlight, #dfdfdf), inset -2px -2px 0 var(--win95-dark, #808080), inset 2px 2px 0 var(--win95-highlight, #dfdfdf)',
+              color: 'var(--titlebar-fg)',
+              fontFamily: WIN_FONT,
+              fontSize: '15px',
               cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 0,
+              padding: '2px 10px',
+              lineHeight: 1.3,
+              touchAction: 'manipulation',
+              whiteSpace: 'nowrap',
             }}
           >
-            <svg width="10" height="9" viewBox="0 0 8 7" fill="none">
-              <path d="M0 0H2V1H3V2H5V1H6V0H8V1H7V2H6V3H5V4H6V5H7V6H8V7H6V6H5V5H3V6H2V7H0V6H1V5H2V4H3V3H2V2H1V1H0V0Z" fill="var(--win95-text, #000)"/>
-            </svg>
+            [ {t.close.toLowerCase()} ]
           </button>
         </div>
 
         {/* Content */}
-        <div style={{ padding: isMobile ? '12px' : '16px' }}>
-          {mixes.map((mix) => (
-            <div key={mix.id} style={{ marginBottom: '16px' }}>
-              {/* Mix label */}
+        <div style={{
+          padding: isMobile ? '16px 14px' : '20px 22px',
+          animation: 'fadeIn 0.3s ease-out',
+        }}>
+          <div style={{ color: 'var(--panel-prompt)', marginBottom: '14px', letterSpacing: '0.04em' }}>## {t.mixes.replace('> ', '')}</div>
+
+          {mixes.map((mix, idx) => (
+            <div key={mix.id}>
               <div style={{
-                fontFamily: WIN_FONT,
-                fontSize: isMobile ? '0.95rem' : '1.05rem',
-                color: 'var(--win95-text, #000)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                fontSize: isMobile ? '0.98rem' : '1.08rem',
                 marginBottom: '10px',
-                letterSpacing: '0.05em',
+                letterSpacing: '0.03em',
               }}>
-                ▶ {mix.number} — {mix.artist}
+                <span style={{ color: 'var(--panel-prompt)' }}>▸</span>
+                <span>{mix.number} — {mix.artist}</span>
               </div>
 
-              {/* SoundCloud embed — compact waveform player */}
               <div style={{
-                border: '2px inset var(--win95-dark, #808080)',
-                backgroundColor: '#000',
+                border: '1px solid var(--panel-border)',
+                background: 'rgba(0,0,0,0.4)',
                 overflow: 'hidden',
+                position: 'relative',
+                minHeight: '120px',
               }}>
+                {!loadedIframes[mix.id] && (
+                  <div aria-hidden style={{
+                    position: 'absolute',
+                    inset: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: 'var(--panel-muted)',
+                    fontFamily: WIN_FONT,
+                    fontSize: '0.95em',
+                    letterSpacing: '0.05em',
+                    pointerEvents: 'none',
+                  }}>
+                    <span className="blink-slow">[ loading mix... ]</span>
+                  </div>
+                )}
                 <iframe
                   width="100%"
                   height="120"
                   scrolling="no"
                   frameBorder="no"
                   allow="autoplay"
-                  src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(mix.soundcloudUrl)}&color=%230000ff&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false`}
-                  style={{ display: 'block' }}
+                  src={`https://w.soundcloud.com/player/?url=${encodeURIComponent(mix.soundcloudUrl)}&color=%23ffffff&auto_play=false&hide_related=true&show_comments=false&show_user=false&show_reposts=false&show_teaser=false`}
+                  onLoad={() => setLoadedIframes(prev => ({ ...prev, [mix.id]: true }))}
+                  style={{
+                    display: 'block',
+                    opacity: loadedIframes[mix.id] ? 1 : 0,
+                    transition: 'opacity 300ms ease',
+                  }}
                   title={`${mix.number} — ${mix.artist}`}
                 />
               </div>
+
+              {idx < mixes.length - 1 && (
+                <div aria-hidden style={{
+                  height: '1px',
+                  background: 'var(--panel-divider)',
+                  margin: '18px 0',
+                }} />
+              )}
             </div>
           ))}
 
+          {/* Coming soon placeholder — soft hint that more is on the way */}
+          <div aria-hidden style={{
+            height: '1px',
+            background: 'var(--panel-divider)',
+            margin: '18px 0',
+          }} />
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px',
+            fontSize: isMobile ? '0.98rem' : '1.08rem',
+            color: 'var(--panel-muted)',
+            letterSpacing: '0.03em',
+          }}>
+            <span>▸</span>
+            <span>{String(mixes.length + 1).padStart(3, '0')} — [ coming soon ]</span>
+          </div>
         </div>
       </div>
     </div>
