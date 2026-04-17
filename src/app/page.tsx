@@ -975,7 +975,7 @@ export default function Home() {
               onClick={!enterFadingOut ? enterScreen.handleEnter : undefined}
               style={{
                 fontFamily: winFont,
-                fontSize: 'clamp(0.85rem, 2.5vw, 1.1rem)',
+                fontSize: 'clamp(1.5rem, 4vw, 2.25rem)',
                 color: 'var(--foreground, #fff)',
                 letterSpacing: '0.35em',
                 cursor: enterFadingOut ? 'default' : 'pointer',
