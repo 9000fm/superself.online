@@ -1,5 +1,11 @@
 'use client';
 
+/* eslint-disable react-hooks/immutability, react-hooks/purity --
+   Canvas particle animation mutates ref-held state inside the rAF loop
+   (p.detached, p.alpha, velocities). React compiler's purity/immutability
+   rules assume pure-render code paths that don't apply to imperative
+   animation refs. See MEMORY.md "R3F + React compiler incompatibility". */
+
 import React, { useRef, useEffect, useCallback, useState } from 'react';
 
 interface LogoDissolverProps {
@@ -124,7 +130,7 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
           // === Per-particle individuality (A+B) ===
           const pullStrength = 0.08 + Math.random() * 0.18;
           const noiseAmp = Math.random() < 0.3 ? 0 : (0.02 + Math.random() * 0.06);
-          const damping = 0.88 + Math.random() * 0.09;
+          const damping = 0.93 + Math.random() * 0.05;
           const jitterScale = 0.2 + Math.random() * 1.3;
           const timeShift = Math.random() * 500;
 
@@ -232,7 +238,7 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
         if (timeSinceDetach < 300) {
           if (timeSinceDetach > 100) {
             const expandFactor = 1 - (timeSinceDetach - 100) / 200;
-            const expandForce = 0.4 + p.jitterScale * 0.2;
+            const expandForce = 0.15 + p.jitterScale * 0.08;
             const outAngle = Math.atan2(p.y - p.targetY, p.x - p.targetX) + (Math.random() - 0.5) * 0.6;
             p.vx += Math.cos(outAngle) * expandForce * expandFactor;
             p.vy += Math.sin(outAngle) * expandForce * expandFactor;
@@ -248,7 +254,7 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
         p.vx *= p.damping;
         p.vy *= p.damping;
         // Per-particle jitter
-        const jitter = 0.8 * p.jitterScale;
+        const jitter = 0.25 * p.jitterScale;
         p.x += p.vx + (Math.random() - 0.5) * jitter;
         p.y += p.vy + (Math.random() - 0.5) * jitter;
       }

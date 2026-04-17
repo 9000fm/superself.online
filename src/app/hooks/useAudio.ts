@@ -44,6 +44,7 @@ export function useAudio(): UseAudioReturn {
     if (restoredRef.current) return;
     restoredRef.current = true;
     const saved = localStorage.getItem('superself-muted') === 'true';
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time hydration of persisted mute state; guarded by restoredRef, mirrors external (localStorage) into React.
     if (saved) setIsMuted(true);
   }, []);
 

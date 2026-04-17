@@ -68,10 +68,11 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
       active: false,
       x: 0.5, y: 0.5, depth: 0.2,
       vx: 0, vy: 0, vDepth: 0,
+      tx: 0.5, ty: 0.5, tDepth: 0.2,
       lifeLeft: 0,
       nextMove: 0,
       lastGone: 0,
-      nextWait: 30000 + Math.random() * 10000, // first fly appears 30-40s after load
+      nextWait: 6000 + Math.random() * 4000, // first fly appears 6-10s after load
     };
 
     const draw = () => {
@@ -200,8 +201,8 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
       // ─── Inner rectangle — smooth fade during dissolution ───
       if (dissolving) {
         const dissolveElapsed = (performance.now() - dissolveStartRef.current) / 1000;
-        // Rect fades in: starts at T+1.0s, fully solid by T+3.0s
-        const rectAlpha = dissolveElapsed < 1.0 ? 0 : Math.min(1, (dissolveElapsed - 1.0) / 2.0);
+        // Rect fades in: starts at T+2.0s (after particles damp), fully solid by T+3.0s
+        const rectAlpha = dissolveElapsed < 2.0 ? 0 : Math.min(1, (dissolveElapsed - 2.0) / 1.0);
         if (rectAlpha > 0) {
           ctx.fillStyle = `rgba(${fgR}, ${fgG}, ${fgB}, ${rectAlpha.toFixed(2)})`;
           ctx.fillRect(Math.floor(iL), Math.floor(iT), Math.ceil(iW) + 1, Math.ceil(iH) + 1);
@@ -317,7 +318,7 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
           flyState.depth = 0.15 + Math.random() * 0.3;
           flyState.vx = 0;
           flyState.vy = 0;
-          flyState.lifeLeft = 2000 + Math.random() * 3000; // 2-5s lifespan
+          flyState.lifeLeft = 3000; // 3s lifespan max
           flyState.nextMove = 0;
         }
 
@@ -325,34 +326,25 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
           flyState.lifeLeft -= dt * 1000;
           flyState.nextMove -= dt * 1000;
 
-          // Fly behavior: prioritize forward/backward (depth) movement.
-          // Quick bursts with pauses between. Casual, rare, fast.
+          // Smooth target-steering: pick a new point in the tunnel every ~600-1200ms,
+          // then accelerate gently toward it. No hard bursts, no lateral jitter.
           if (flyState.nextMove <= 0) {
-            const roll = Math.random();
-            if (roll < 0.5) {
-              // Forward burst (deeper into tunnel)
-              flyState.vx = (Math.random() - 0.5) * 0.006;
-              flyState.vy = (Math.random() - 0.5) * 0.006;
-              flyState.vDepth = -(0.05 + Math.random() * 0.08);
-            } else if (roll < 0.8) {
-              // Backward burst (toward viewer)
-              flyState.vx = (Math.random() - 0.5) * 0.006;
-              flyState.vy = (Math.random() - 0.5) * 0.006;
-              flyState.vDepth = 0.04 + Math.random() * 0.07;
-            } else {
-              // Lateral jitter — quick side movement
-              flyState.vx = (Math.random() - 0.5) * 0.025;
-              flyState.vy = (Math.random() - 0.5) * 0.025;
-              flyState.vDepth = (Math.random() - 0.5) * 0.005;
-            }
-            // Pauses: mostly long (casual), occasionally short (nervous burst)
-            flyState.nextMove = Math.random() < 0.3 ? 80 + Math.random() * 120 : 400 + Math.random() * 800;
+            flyState.tx = 0.25 + Math.random() * 0.5;
+            flyState.ty = 0.25 + Math.random() * 0.5;
+            flyState.tDepth = 0.1 + Math.random() * 0.55;
+            flyState.nextMove = 600 + Math.random() * 600;
           }
 
-          // Strong damping — fly stops quickly between bursts
-          flyState.vx *= 0.88;
-          flyState.vy *= 0.88;
-          flyState.vDepth *= 0.85;
+          // Steer: add a small acceleration toward target each frame
+          const accel = 0.00035;
+          flyState.vx += (flyState.tx - flyState.x) * accel;
+          flyState.vy += (flyState.ty - flyState.y) * accel;
+          flyState.vDepth += (flyState.tDepth - flyState.depth) * accel * 1.2;
+
+          // Light damping — keeps motion smooth, not jittery
+          flyState.vx *= 0.96;
+          flyState.vy *= 0.96;
+          flyState.vDepth *= 0.96;
           flyState.x += flyState.vx;
           flyState.y += flyState.vy;
           flyState.depth += flyState.vDepth;
@@ -366,7 +358,7 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
           const fd = depthEase(1 - flyState.depth);
           const fx = lerp(lerp(oL, oR, flyState.x), lerp(iL, iR, flyState.x), fd);
           const fy = lerp(lerp(oT, oB, flyState.y), lerp(iT, iB, flyState.y), fd);
-          const fSize = 1 + flyState.depth * 6;
+          const fSize = 0.6 + flyState.depth * 0.9;
           const fAlpha = particleOpacity * Math.min(1, flyState.lifeLeft / 500) * 0.7;
 
           // Draw fly

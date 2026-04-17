@@ -233,6 +233,7 @@ export function useEnterScreen({ phase, onEnter }: UseEnterScreenProps): UseEnte
 
   // Main cycling
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- phase-change reset of the typing buffer; effect mirrors external (parent phase) state.
     if (phase !== 'enter') { cleanup(); setDisplayText(''); return; }
     // Entering the enter phase fresh — reset trigger guard
     hasTriggered.current = false;

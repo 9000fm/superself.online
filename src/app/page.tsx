@@ -1808,10 +1808,11 @@ export default function Home() {
       >
         <span
           onClick={() => {
-            const count = (window as Record<string, unknown>).__biosClicks as number || 0;
-            (window as Record<string, unknown>).__biosClicks = count + 1;
+            const w = window as unknown as Record<string, unknown>;
+            const count = (w.__biosClicks as number) || 0;
+            w.__biosClicks = count + 1;
             if (count + 1 >= 5) {
-              (window as Record<string, unknown>).__biosClicks = 0;
+              w.__biosClicks = 0;
               setPhase('error');
             }
           }}
