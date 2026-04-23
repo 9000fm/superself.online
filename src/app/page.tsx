@@ -37,6 +37,8 @@ import Mixes from './components/Mixes';
 
 // Grid scene — imported directly (not lazy) so WebGL initializes during boot
 import GridScene from './components/GridScene';
+import Shoutbox from './components/Shoutbox';
+import ShoutboxBadge from './components/ShoutboxBadge';
 
 // Default panel sizes (approximate — used to compute home positions + animation target)
 const PANEL_SIZES = {
@@ -226,12 +228,9 @@ export default function Home() {
   const [navBlinking, setNavBlinking] = useState<number | null>(null);
   // activeWindow tracks welcome-popup focus only (the 3 main panels use openStack).
   const [activeWindow, setActiveWindow] = useState<ActiveWindow>(null);
-  const [showNotification, setShowNotification] = useState(false);
   const [welcomeStep, setWelcomeStep] = useState<WelcomeStep>('message');
   const [smileyExpression, setSmileyExpression] = useState<'open-right' | 'open-left' | 'blink'>('open-right');
   const smileyDirectionRef = useRef<'right' | 'left'>('right');
-  const [welcomeMessage, setWelcomeMessage] = useState('');
-
   const focusedSection: Exclude<ActiveSection, null> | null =
     openStack.length > 0 ? openStack[openStack.length - 1] : null;
   const isOpen = (s: Exclude<ActiveSection, null>) => openStack.includes(s);
@@ -257,6 +256,11 @@ export default function Home() {
   const [dissolving, setDissolving] = useState(false);
   const [enterFadingOut, setEnterFadingOut] = useState(false);
   const [invertFlash, setInvertFlash] = useState(false);
+  const [flashKey, setFlashKey] = useState(0);
+  // Skip flash entirely when the center rect (foreground) is dark — looks "off".
+  const flashEnabledRef = useRef(true);
+  // Cooldown gate for the title-click flash so rapid clicks don't stack remounts/animations.
+  const lastFlashTsRef = useRef(0);
   const [isMobile, setIsMobile] = useState(false);
 
   // Landscape warning
@@ -272,44 +276,71 @@ export default function Home() {
   // Apply color palette CSS variables
   const applyPalette = useCallback((idx: number) => {
     const p = COLOR_PALETTES[idx];
+    const lum = (hex: string) => {
+      const h = hex.replace('#', '');
+      const r = parseInt(h.slice(0,2), 16);
+      const g = parseInt(h.slice(2,4), 16);
+      const b = parseInt(h.slice(4,6), 16);
+      return r * 0.299 + g * 0.587 + b * 0.114;
+    };
+    // Auto-invert: if the center rect (fg) would be darker than the bg,
+    // swap the palette so fg is always the lighter color. Flash then always works.
+    const needsSwap = lum(p.fg) < lum(p.bg);
+    const fg = needsSwap ? p.bg : p.fg;
+    const bg = needsSwap ? p.fg : p.bg;
+    const selBg = needsSwap ? p.selFg : p.selBg;
+    const selFg = needsSwap ? p.selBg : p.selFg;
+    const hoverBg = needsSwap ? p.hoverFg : p.hoverBg;
+    const hoverFg = needsSwap ? p.hoverBg : p.hoverFg;
+    // Regenerate rgba accent props from the new fg so frame/muted/primary stay consistent.
+    let frame: string = p.frame, muted: string = p.muted, primary: string = p.primary;
+    if (needsSwap) {
+      const h = fg.replace('#', '');
+      const r = parseInt(h.slice(0,2), 16);
+      const g = parseInt(h.slice(2,4), 16);
+      const b = parseInt(h.slice(4,6), 16);
+      frame = `rgba(${r},${g},${b},0.55)`;
+      muted = `rgba(${r},${g},${b},0.5)`;
+      primary = `rgba(${r},${g},${b},0.9)`;
+    }
+
     const el = document.documentElement;
-    el.style.setProperty('--user-color', p.bg);
-    el.style.setProperty('--background', p.bg);
-    el.style.setProperty('--foreground', p.fg);
-    el.style.setProperty('--frame-border', p.frame);
-    el.style.setProperty('--text-muted', p.muted);
-    el.style.setProperty('--text-primary', p.primary);
-    el.style.setProperty('--selection-bg', p.selBg);
-    el.style.setProperty('--selection-fg', p.selFg);
-    el.style.setProperty('--social-hover-bg', p.selBg);
-    el.style.setProperty('--social-hover-fg', p.selFg);
-    el.style.setProperty('--nav-hover-bg', p.hoverBg);
-    el.style.setProperty('--nav-hover-fg', p.hoverFg);
-    el.style.setProperty('--nav-hover-fg-contrast', p.hoverFg);
+    el.style.setProperty('--user-color', bg);
+    el.style.setProperty('--background', bg);
+    el.style.setProperty('--foreground', fg);
+    el.style.setProperty('--frame-border', frame);
+    el.style.setProperty('--text-muted', muted);
+    el.style.setProperty('--text-primary', primary);
+    el.style.setProperty('--selection-bg', selBg);
+    el.style.setProperty('--selection-fg', selFg);
+    el.style.setProperty('--social-hover-bg', selBg);
+    el.style.setProperty('--social-hover-fg', selFg);
+    el.style.setProperty('--nav-hover-bg', hoverBg);
+    el.style.setProperty('--nav-hover-fg', hoverFg);
+    el.style.setProperty('--nav-hover-fg-contrast', hoverFg);
     el.style.setProperty('--bar-color', p.bar);
     // Panel tokens: adapt to popup-bg luminance (popup-bg = fg).
-    // Dark fg → popup has dark bg → need LIGHT borders. Light fg → dark borders.
-    const hex = p.fg.replace('#', '');
-    const r = parseInt(hex.slice(0,2), 16);
-    const g = parseInt(hex.slice(2,4), 16);
-    const b = parseInt(hex.slice(4,6), 16);
-    const isLightFg = (r * 0.299 + g * 0.587 + b * 0.114) > 128;
+    const fgLum = lum(fg);
+    const bgLum = lum(bg);
+    const isLightFg = fgLum > 128;
     if (isLightFg) {
       el.style.setProperty('--panel-border', 'rgba(0,0,0,0.28)');
       el.style.setProperty('--panel-divider', 'rgba(0,0,0,0.18)');
       el.style.setProperty('--panel-prompt', 'rgba(0,0,0,0.6)');
       el.style.setProperty('--panel-muted', 'rgba(0,0,0,0.5)');
-      el.style.setProperty('--flash-color', p.fg); // lighter = fg
     } else {
       el.style.setProperty('--panel-border', 'rgba(255,255,255,0.22)');
       el.style.setProperty('--panel-divider', 'rgba(255,255,255,0.14)');
       el.style.setProperty('--panel-prompt', 'rgba(255,255,255,0.55)');
       el.style.setProperty('--panel-muted', 'rgba(255,255,255,0.45)');
-      el.style.setProperty('--flash-color', p.bg); // lighter = bg
     }
+    // Flash = whichever of fg/bg is lighter (after auto-invert, always fg).
+    el.style.setProperty('--flash-color', fgLum >= bgLum ? fg : bg);
+    // Flash always enabled now — invert guarantees the center is never the dark one.
+    flashEnabledRef.current = true;
     // Save to localStorage for hydration script
-    localStorage.setItem('superself-color', p.bg);
-    localStorage.setItem('superself-fg', p.fg);
+    localStorage.setItem('superself-color', bg);
+    localStorage.setItem('superself-fg', fg);
   }, []);
 
   const clearPaletteOverrides = useCallback(() => {
@@ -339,6 +370,10 @@ export default function Home() {
   // Ref for logo element (to capture bounding rect for dissolution)
   const logoRef = useRef<HTMLDivElement>(null);
   const [logoRect, setLogoRect] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  // True only once LogoDissolver has painted its first frame of particles — gates the PNG fade.
+  const [particlesReady, setParticlesReady] = useState(false);
+  // Tracks whether the webp has been preloaded so we don't fire `new Image()` more than once.
+  const logoPreloadedRef = useRef(false);
 
   // Nav button refs for popup transition
   const navRefs = useRef<Record<string, HTMLButtonElement | null>>({});
@@ -371,18 +406,27 @@ export default function Home() {
         setDissolving(true);
         setTimeout(() => audio.startMusic(), 400);
       }, 1200);
-      // Flash fires slightly before dissolution ends (particles almost converged)
-      setTimeout(() => setInvertFlash(true), 4200);
-      setTimeout(() => setInvertFlash(false), 7000);
     },
   });
 
   const handleDissolutionComplete = useCallback(() => {
     setDissolving(false);
     setEnterFadingOut(false);
+    setParticlesReady(false);
     setSkipMode(true);
     setPhase('main');
   }, []);
+
+  // Preload the logo webp the moment we enter the 'enter' phase. LogoDissolver's internal
+  // `new Image()` then decodes from cache the instant dissolve fires, so particles render
+  // in the same tick without a void between the PNG fade and the canvas paint.
+  useEffect(() => {
+    if (phase === 'enter' && !logoPreloadedRef.current) {
+      logoPreloadedRef.current = true;
+      const img = new Image();
+      img.src = '/superself-logo-wh.webp';
+    }
+  }, [phase]);
 
   const shutdown = useShutdownSequence({
     phase,
@@ -393,10 +437,11 @@ export default function Home() {
       audio.stopAll();
       setDissolving(false);
       setEnterFadingOut(false);
+      setParticlesReady(false);
       entrance.resetEntranceState();
       setShowWelcomePopup(false);
       setOpenStack([]);
-      setShowNotification(false);
+      /* noop: badge is persistent */
       setShowLogo(false);
       setShowLoader(false);
       setRebootCount((c) => c + 1);
@@ -531,16 +576,6 @@ export default function Home() {
     }
   }, [entrance.burgerVisible, visibleNavItems]);
 
-  // Show "1 new message" notification after entering main phase
-  useEffect(() => {
-    if (phase === 'main' && !showWelcomePopup && !showNotification) {
-      const timer = setTimeout(() => {
-        setShowNotification(true);
-      }, 12000);
-      return () => clearTimeout(timer);
-    }
-  }, [phase]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // Boot sequence — logo only, 2 seconds, then straight to main
   useEffect(() => {
     if (phase === 'boot') {
@@ -566,9 +601,18 @@ export default function Home() {
     setTimeout(() => setPhase('main'), 400);
   };
 
-  // Re-scramble title (just the title text, not the full entrance)
+  // Re-scramble title + punchy flash + audio ping (flash only if fg is light enough,
+  // with a 500ms cooldown so rapid clicks don't stack animations/remounts).
   const handleTitleClick = () => {
     setReplayTrigger((prev) => prev + 1);
+    audio.playWoosh();
+    if (!flashEnabledRef.current) return;
+    const now = performance.now();
+    if (now - lastFlashTsRef.current < 500) return;
+    lastFlashTsRef.current = now;
+    setFlashKey((k) => k + 1);
+    setInvertFlash(true);
+    setTimeout(() => setInvertFlash(false), 1200);
   };
 
   // Welcome popup handlers
@@ -577,14 +621,14 @@ export default function Home() {
       setWelcomeStep('subscribe');
     } else {
       setShowWelcomePopup(false);
-      setShowNotification(true);
+      /* noop: badge is persistent */
       setWelcomeStep('message');
     }
   };
 
   const handleCloseWelcome = () => {
     setShowWelcomePopup(false);
-    setShowNotification(true);
+    /* noop: badge is persistent */
     setWelcomeStep('message');
   };
 
@@ -697,18 +741,6 @@ export default function Home() {
     const size = PANEL_SIZES[section];
     return { x: pos.x, y: pos.y, w: size.w, h: size.h };
   };
-
-  // Pick a random welcome message when popup opens. Stays the same until popup closes.
-  useEffect(() => {
-    if (showWelcomePopup) {
-      if (welcomeMessage === '') {
-        const pool = t.welcomeMessages;
-        setWelcomeMessage(pool[Math.floor(Math.random() * pool.length)]);
-      }
-    } else {
-      setWelcomeMessage('');
-    }
-  }, [showWelcomePopup, t, welcomeMessage]);
 
   // Smiley with life — random 6-12s intervals, 25% chance of double-blink + direction flip
   useEffect(() => {
@@ -831,6 +863,7 @@ export default function Home() {
            Performance-friendly (flat div, no filter). */}
       {invertFlash && (
         <div
+          key={flashKey}
           aria-hidden
           style={{
             position: 'fixed',
@@ -838,7 +871,12 @@ export default function Home() {
             backgroundColor: 'var(--flash-color, #ffffff)',
             zIndex: 9999,
             pointerEvents: 'none',
-            animation: 'flashbangBurn 2800ms linear forwards',
+            // GPU layer hints for smooth opacity animation, without `isolation` /
+            // `contain` — those flatten the blend with underlying layers and make
+            // the flash feel static/robotic.
+            willChange: 'opacity',
+            transform: 'translateZ(0)',
+            animation: 'flashbangClick 1200ms linear forwards',
           }}
         />
       )}
@@ -930,8 +968,10 @@ export default function Home() {
             width: '86%',
             aspectRatio: '1',
             position: 'relative',
-            opacity: showLogo && !dissolving ? 1 : 0,
-            transition: dissolving ? 'opacity 0.3s ease' : 'none',
+            opacity: showLogo && !(dissolving && particlesReady) ? 1 : 0,
+            // Only fade the PNG once LogoDissolver confirmed particles are painted.
+            // 100ms is imperceptible because the canvas silhouette sits right on top.
+            transition: (dissolving && particlesReady) ? 'opacity 0.1s linear' : 'none',
             cursor: phase === 'enter' && !enterFadingOut ? 'pointer' : 'default',
             outline: 'none',
           }}
@@ -975,7 +1015,7 @@ export default function Home() {
               onClick={!enterFadingOut ? enterScreen.handleEnter : undefined}
               style={{
                 fontFamily: winFont,
-                fontSize: 'clamp(1.5rem, 4vw, 2.25rem)',
+                fontSize: 'clamp(0.95rem, 2.3vw, 1.35rem)',
                 color: 'var(--foreground, #fff)',
                 letterSpacing: '0.35em',
                 cursor: enterFadingOut ? 'default' : 'pointer',
@@ -1000,6 +1040,7 @@ export default function Home() {
         src="/superself-logo-wh.webp"
         trigger={dissolving}
         onComplete={handleDissolutionComplete}
+        onReady={() => setParticlesReady(true)}
       />
 
       {/* === SHUTDOWN PHASE === */}
@@ -1012,7 +1053,11 @@ export default function Home() {
 
       {/* === MAIN CONTENT === */}
 
-      {/* Top Left - CLI Logo */}
+      {/* Top Left - CLI Logo.
+          Padding enlarges the hit area so clicks in the gaps between glyphs (or just
+          above/below the text) still register as title clicks instead of falling through
+          to the palette cycle zone underneath. Negative margin cancels the padding
+          visually so the text stays flush with the frame corner. */}
       <div
         style={{
           position: 'absolute',
@@ -1028,7 +1073,8 @@ export default function Home() {
           zIndex: 10,
           whiteSpace: 'nowrap',
           overflow: 'hidden',
-          padding: '0',
+          padding: '12px 16px',
+          margin: '-12px -16px',
           lineHeight: '1',
         }}
         onClick={handleTitleClick}
@@ -1102,7 +1148,8 @@ export default function Home() {
         <MuteToggle isMuted={audio.isMuted} onToggle={audio.toggleMute} />
       </div>
 
-      {/* Social icons */}
+
+      {/* Social icons — gap between icons is dead zone (default pointerEvents). */}
       <div
         className="social-icons-container"
         style={{
@@ -1136,7 +1183,9 @@ export default function Home() {
         </button>
       </div>
 
-      {/* Navigation — always visible, below title */}
+      {/* Navigation — always visible, below title.
+          Container keeps default pointerEvents so clicks in the gap between nav items
+          are absorbed as dead zone (neither open a panel nor cycle palette). */}
       <nav
         aria-label="Main navigation"
         style={{
@@ -1214,123 +1263,25 @@ export default function Home() {
         })}
       </nav>
 
-      {/* Welcome Popup — neo-terminal flat */}
+      {/* Shoutbox — draggable floating window (no modal backdrop, no blur) */}
       {showWelcomePopup && (
         <div
+          onMouseDown={() => setActiveWindow('welcome')}
+          onTouchStart={() => setActiveWindow('welcome')}
           style={{
             position: 'fixed',
-            top: 0, left: 0, right: 0, bottom: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            paddingTop: isMobile ? 'env(safe-area-inset-top, 20px)' : 0,
-            paddingBottom: isMobile ? 'env(safe-area-inset-bottom, 20px)' : 0,
+            top: effectivePos('welcome').y || (isMobile ? '50%' : '14%'),
+            left: effectivePos('welcome').x || '50%',
+            transform: (effectivePos('welcome').x || effectivePos('welcome').y) ? undefined : 'translate(-50%, 0)',
             zIndex: activeWindow === 'welcome' ? 170 : 100,
-            pointerEvents: 'none',
           }}
         >
-          <div
-            className="popup-window"
-            onClick={(e) => e.stopPropagation()}
-            onMouseDown={() => setActiveWindow('welcome')}
-            onTouchStart={() => setActiveWindow('welcome')}
-            style={{
-              backgroundColor: 'var(--popup-bg)',
-              border: '1px solid var(--panel-border)',
-              fontFamily: winFont,
-              fontSize: 'clamp(1.05rem, 2.8vw, 1.3rem)',
-              color: 'var(--popup-fg)',
-              maxHeight: isMobile ? 'calc(100svh - 40px)' : undefined,
-              width: 'clamp(340px, 85vw, 480px)',
-              maxWidth: '88vw',
-              lineHeight: '1.55',
-              textAlign: 'left',
-              position: effectivePos('welcome').x || effectivePos('welcome').y ? 'fixed' : 'relative',
-              top: effectivePos('welcome').y || undefined,
-              left: effectivePos('welcome').x || undefined,
-              pointerEvents: 'auto',
-              overflow: isMobile ? 'hidden auto' : 'hidden',
-            }}
-          >
-            {/* Flat titlebar */}
-            <div
-              onMouseDown={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'welcome'); }}
-              onTouchStart={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'welcome'); }}
-              style={{
-                background: 'var(--titlebar-bg)',
-                padding: '6px 10px',
-                display: 'flex',
-                justifyContent: 'space-between',
-                alignItems: 'center',
-                cursor: draggable.isDragging === 'welcome' ? 'grabbing' : 'grab',
-                touchAction: 'none',
-                borderBottom: '1px solid var(--panel-border)',
-              }}
-            >
-              <span style={{
-                color: 'var(--titlebar-fg)',
-                fontFamily: winFont,
-                fontSize: '16px',
-                letterSpacing: '0.02em',
-                whiteSpace: 'nowrap',
-              }}>
-                {t.welcomeTitle}
-              </span>
-              <button
-                onClick={(e) => { e.stopPropagation(); handleCloseWelcome(); }}
-                onMouseDown={(e) => e.stopPropagation()}
-                onTouchStart={(e) => e.stopPropagation()}
-                onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); handleCloseWelcome(); }}
-                aria-label={t.close}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  color: 'var(--titlebar-fg)',
-                  fontFamily: winFont,
-                  fontSize: '15px',
-                  cursor: 'pointer',
-                  padding: '2px 10px',
-                  lineHeight: 1.3,
-                  touchAction: 'manipulation',
-                  whiteSpace: 'nowrap',
-                }}
-              >
-                [ {t.close.toLowerCase()} ]
-              </button>
-            </div>
-
-            {/* System notification style — structured, left-aligned, terminal feel */}
-            <div style={{ padding: '22px 24px 18px', fontSize: 'clamp(1rem, 2.6vw, 1.2rem)' }}>
-              {/* Top: smiley left + status right */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-                <span aria-hidden style={{
-                  display: 'inline-block',
-                  width: '4em',
-                  fontSize: 'clamp(1.8rem, 5vw, 2.4rem)',
-                  color: 'var(--popup-fg)',
-                  lineHeight: 1,
-                }}>
-                  {smileyExpression === 'blink' ? '(－‿－)' : smileyExpression === 'open-left' ? '(◔‿◔)' : '(◕‿◕)'}
-                </span>
-                <span style={{ color: 'var(--panel-muted)', fontSize: '0.78em', letterSpacing: '0.12em', display: 'inline-flex', alignItems: 'center', gap: '7px' }}>
-                  <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: '#22c55e', display: 'inline-block', boxShadow: '0 0 6px #22c55e, 0 0 14px #22c55e50' }} />
-                  {t.msgOnline.toUpperCase()}
-                </span>
-              </div>
-              {/* Separator */}
-              <div aria-hidden style={{ borderTop: '1px solid var(--panel-border)', marginBottom: '16px' }} />
-              {/* Message — BIOS highlight style (inverted bg) */}
-              <div style={{
-                color: 'var(--popup-bg)',
-                background: 'var(--popup-fg)',
-                lineHeight: 1.75,
-                marginBottom: '10px',
-                padding: '12px 16px',
-              }}>
-                &ldquo;{welcomeMessage}&rdquo;{' '}<span style={{ float: 'right' }}><a href="https://www.instagram.com/manyari___/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'none', opacity: 0.6 }} onMouseEnter={(e) => { e.currentTarget.style.opacity = '1'; }} onMouseLeave={(e) => { e.currentTarget.style.opacity = '0.6'; }}>— flavio</a></span>
-              </div>
-            </div>
-          </div>
+          <Shoutbox
+            language={language}
+            onClose={() => { setShowWelcomePopup(false); setActiveWindow(null); }}
+            onTitlebarDragStart={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'welcome'); }}
+            isDragging={draggable.isDragging === 'welcome'}
+          />
         </div>
       )}
 
@@ -1393,7 +1344,7 @@ export default function Home() {
                 superself.exe
               </span>
               <button
-                onClick={(e) => { e.stopPropagation(); setShowSubscribedPopup(false); setShowNotification(true); }}
+                onClick={(e) => { e.stopPropagation(); setShowSubscribedPopup(false); /* noop: badge is persistent */ }}
                 onMouseDown={(e) => e.stopPropagation()}
                 onTouchStart={(e) => e.stopPropagation()}
                 aria-label={t.close}
@@ -1430,10 +1381,10 @@ export default function Home() {
               <div aria-hidden style={{ height: '1px', background: 'var(--panel-divider)', margin: '0 0 16px' }} />
               <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
                 <button
-                  onClick={() => { setShowSubscribedPopup(false); setShowNotification(true); }}
+                  onClick={() => { setShowSubscribedPopup(false); /* noop: badge is persistent */ }}
                   onMouseDown={(e) => e.stopPropagation()}
                   onTouchStart={(e) => e.stopPropagation()}
-                  onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setShowSubscribedPopup(false); setShowNotification(true); }}
+                  onTouchEnd={(e) => { e.stopPropagation(); e.preventDefault(); setShowSubscribedPopup(false); /* noop: badge is persistent */ }}
                   style={{
                     background: 'transparent',
                     border: '1px solid var(--panel-border)',
@@ -1547,7 +1498,7 @@ export default function Home() {
             </div>
             <div style={{ padding: '20px 22px', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
               {/* ## about */}
-              <div style={{ color: 'var(--panel-prompt)', marginBottom: '6px', letterSpacing: '0.04em' }}>## {t.about.replace('> ', '')}</div>
+              <div style={{ color: 'var(--panel-prompt)', marginBottom: '6px', letterSpacing: '0.04em' }}>## {t.aboutHeader}</div>
               <p style={{ margin: 0, marginBottom: '14px', wordBreak: 'break-word', color: 'var(--popup-fg)' }}>
                 <span style={{ color: 'var(--panel-prompt)', marginRight: '8px' }}>▸</span>
                 <span style={{ color: 'var(--popup-fg)', fontWeight: 'bold' }}>superself</span>{' '}
@@ -1692,22 +1643,24 @@ export default function Home() {
         </div>
       )}
 
-      {/* Notification reminder */}
-      {showNotification && (
+      {/* Persistent chat badge — keeps the blinking "▶ [N mensaje nuevo]" vibe,
+          count wired to the live shoutbox. */}
+      {showMainContent && (
         <div
-          onClick={() => { setShowWelcomePopup(true); setShowNotification(false); setActiveWindow('welcome'); }}
           style={{
             position: 'absolute',
             bottom: contentInsetBottom,
             left: contentInset,
-            cursor: 'pointer',
-            fontFamily: winFont,
-            fontSize: 'clamp(0.85rem, 2vw, 1.3rem)',
-            color: 'var(--text-primary, rgba(255,255,255,0.75))',
+            opacity: entrance.showFooter ? 1 : 0,
+            transition: 'opacity 0.8s ease-in-out',
+            transitionDelay: entrance.showFooter ? '3.5s' : '0s',
             zIndex: 10,
           }}
         >
-          <span className="blink-slow">▶</span> [{scrambled.message || t.message}]
+          <ShoutboxBadge
+            language={language}
+            onClick={() => { setShowWelcomePopup(true); setActiveWindow('welcome'); }}
+          />
         </div>
       )}
 

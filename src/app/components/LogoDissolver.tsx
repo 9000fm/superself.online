@@ -13,6 +13,7 @@ interface LogoDissolverProps {
   src: string;
   trigger: boolean;
   onComplete?: () => void;
+  onReady?: () => void;
 }
 
 interface Particle {
@@ -56,7 +57,7 @@ interface Particle {
   bezierCtrlY: number;
 }
 
-export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissolverProps) {
+export function LogoDissolver({ logoRect, src, trigger, onComplete, onReady }: LogoDissolverProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
   const particlesRef = useRef<Particle[]>([]);
@@ -141,8 +142,8 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
           const distToTarget = Math.sqrt((targetX - px) ** 2 + (targetY - py) ** 2);
           const viewportDiag = Math.sqrt(window.innerWidth ** 2 + window.innerHeight ** 2);
           const normDist = Math.min(1, distToTarget / (viewportDiag * 0.6));
-          const vacuumStartTime = 1700 + normDist * 500;  // 1700ms (near) → 2200ms (far)
-          const vacuumDuration = 600 + Math.random() * 600; // 600-1200ms per particle
+          const vacuumStartTime = 1200 + normDist * 500;  // 1200ms (near) → 1700ms (far) — 500ms earlier
+          const vacuumDuration = 1100 + Math.random() * 600; // 1100-1700ms per particle — extended so end time stays identical
 
           // === S: bezier curve — random perpendicular offset (signed fraction of distance) ===
           const bezierOffset = (Math.random() - 0.5) * 0.7; // -0.35 to 0.35
@@ -174,10 +175,29 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
         }
       }
       particlesRef.current = particles;
+
+      // Paint the first frame of particles SYNCHRONOUSLY, before onReady fires.
+      // Otherwise React re-renders and the logoRef fade would start 1-2 frames before
+      // the canvas actually has any pixels on screen → visible "hueco" between
+      // the PNG fading out and the particles appearing.
+      const canvas = canvasRef.current;
+      if (canvas) {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        const cctx = canvas.getContext('2d');
+        if (cctx) {
+          for (const p of particles) {
+            cctx.fillStyle = `rgba(${p.r},${p.g},${p.b},1)`;
+            cctx.fillRect(p.x, p.y, p.size, p.size);
+          }
+        }
+      }
+
       setReady(true);
+      onReady?.();
     };
     img.src = src;
-  }, [trigger, logoRect, src]);
+  }, [trigger, logoRect, src, onReady]);
 
   const animate = useCallback(() => {
     const canvas = canvasRef.current;
@@ -223,7 +243,9 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete }: LogoDissol
           p.bezierCtrlY = midY + perpY * p.bezierOffset * len;
         }
         // Interpolate along quadratic bezier: P(t) = (1-t)²A + 2(1-t)t·C + t²B
-        const t = Math.min(1, (effElapsed - p.vacuumStartTime) / p.vacuumDuration);
+        // Ease-in on t so absorption starts slow and ramps toward normal speed.
+        const rawT = Math.min(1, (effElapsed - p.vacuumStartTime) / p.vacuumDuration);
+        const t = Math.pow(rawT, 1.35);
         const mt = 1 - t;
         p.x = mt * mt * p.bezierStartX + 2 * mt * t * p.bezierCtrlX + t * t * p.targetX;
         p.y = mt * mt * p.bezierStartY + 2 * mt * t * p.bezierCtrlY + t * t * p.targetY;

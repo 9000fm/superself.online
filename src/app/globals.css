@@ -290,17 +290,17 @@ body {
   100%  { opacity: 1; }
 }
 
-/* Flashbang overlay — foreground color flash. Instant peak, long hold, slow cinematic
-   recovery. Grid/tunnel emerge underneath as opacity fades. No filter = no perf hit. */
-@keyframes flashbangBurn {
+/* Click flash — instant peak, then progressive recovery: stays bright at the start
+   and accelerates toward full clarity at the end (ease-in decay). */
+@keyframes flashbangClick {
   0%    { opacity: 0; }
-  2%    { opacity: 1; }
-  32%   { opacity: 1; }
-  46%   { opacity: 0.75; }
-  58%   { opacity: 0.45; }
-  70%   { opacity: 0.2; }
-  82%   { opacity: 0.08; }
-  92%   { opacity: 0.02; }
+  4%    { opacity: 1; }
+  14%   { opacity: 0.96; }
+  28%   { opacity: 0.86; }
+  44%   { opacity: 0.68; }
+  60%   { opacity: 0.46; }
+  75%   { opacity: 0.24; }
+  88%   { opacity: 0.08; }
   100%  { opacity: 0; }
 }
 
@@ -424,5 +424,21 @@ button:hover .nav-cursor {
 .win95-input::placeholder {
   color: var(--panel-muted, #808080);
   opacity: 1;
+}
+
+/* Shoutbox — collapse sidebar under chat on narrow viewports */
+@media (max-width: 560px) {
+  .shoutbox-body {
+    grid-template-columns: 1fr !important;
+  }
+  .shoutbox-log {
+    border-right: none !important;
+    border-bottom: 1px solid var(--panel-divider);
+    max-height: 320px !important;
+  }
+  .shoutbox-sidebar {
+    max-height: 120px;
+    overflow-y: auto;
+  }
 }
 
