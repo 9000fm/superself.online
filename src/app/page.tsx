@@ -670,7 +670,7 @@ export default function Home() {
       const res = await fetch('/api/subscribe', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: subscribeEmail }),
+        body: JSON.stringify({ email: subscribeEmail, lang: language }),
       });
       const data = await res.json();
 
@@ -901,7 +901,7 @@ export default function Home() {
           // Post-dissolution: keep animation applied (forwards fill = opacity 1).
           // Removing animation on mobile Safari causes a brief repaint dip.
           opacity: (showMainContent && !dissolving) ? 1 : undefined,
-          animation: (dissolving || showMainContent) ? 'frameReveal 3.5s ease-in forwards' : 'none',
+          animation: (dissolving || showMainContent) ? 'frameReveal 1.2s ease-out forwards' : 'none',
         }}
       >
         <GridScene dissolving={dissolving} />
@@ -1281,6 +1281,7 @@ export default function Home() {
             onClose={() => { setShowWelcomePopup(false); setActiveWindow(null); }}
             onTitlebarDragStart={(e) => { e.preventDefault(); draggable.handleDragStart(e, 'welcome'); }}
             isDragging={draggable.isDragging === 'welcome'}
+            scrambled={scrambled}
           />
         </div>
       )}
@@ -1498,7 +1499,7 @@ export default function Home() {
             </div>
             <div style={{ padding: '20px 22px', overflow: 'hidden', animation: 'fadeIn 0.3s ease-out' }}>
               {/* ## about */}
-              <div style={{ color: 'var(--panel-prompt)', marginBottom: '6px', letterSpacing: '0.04em' }}>## {t.aboutHeader}</div>
+              <div style={{ color: 'var(--panel-prompt)', marginBottom: '6px', letterSpacing: '0.04em' }}>## {scrambled.aboutHeader || t.aboutHeader}</div>
               <p style={{ margin: 0, marginBottom: '14px', wordBreak: 'break-word', color: 'var(--popup-fg)' }}>
                 <span style={{ color: 'var(--panel-prompt)', marginRight: '8px' }}>▸</span>
                 <span style={{ color: 'var(--popup-fg)', fontWeight: 'bold' }}>superself</span>{' '}
@@ -1511,7 +1512,7 @@ export default function Home() {
                 margin: '16px 0',
               }} />
               {/* ## subscribe */}
-              <div style={{ color: 'var(--panel-prompt)', marginBottom: '8px', letterSpacing: '0.04em' }}>## {t.subscribe.toLowerCase()}</div>
+              <div style={{ color: 'var(--panel-prompt)', marginBottom: '8px', letterSpacing: '0.04em' }}>## {scrambled.subscribeHeader || t.subscribe.toLowerCase()}</div>
               <form onSubmit={handleSubscribe} style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap' }}>
                 <span style={{ color: 'var(--panel-prompt)', flexShrink: 0 }}>▸</span>
                 <input
@@ -1595,6 +1596,7 @@ export default function Home() {
             onDragStart={(e) => draggable.handleDragStart(e, 'mixes')}
             isDragging={draggable.isDragging === 'mixes'}
             transitionStyle={popupTransition.getPopupStyle('mixes')}
+            scrambledHeader={scrambled.mixesHeader}
           />
         </div>
       )}
@@ -1660,6 +1662,7 @@ export default function Home() {
           <ShoutboxBadge
             language={language}
             onClick={() => { setShowWelcomePopup(true); setActiveWindow('welcome'); }}
+            scrambled={scrambled}
           />
         </div>
       )}

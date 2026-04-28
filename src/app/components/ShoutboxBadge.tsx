@@ -8,9 +8,10 @@ import { translations } from '../translations';
 type Props = {
   language: Language;
   onClick: () => void;
+  scrambled?: { badgeOne?: string; badgeMany?: string };
 };
 
-export default function ShoutboxBadge({ language, onClick }: Props) {
+export default function ShoutboxBadge({ language, onClick, scrambled }: Props) {
   const t = translations[language].shoutbox;
   const [total, setTotal] = useState<number | null>(null);
 
@@ -50,9 +51,9 @@ export default function ShoutboxBadge({ language, onClick }: Props) {
 
   const n = total ?? 0;
   const nDisplay = n > 99 ? '99+' : String(n);
-  const label = n === 1
-    ? t.badgeOne
-    : t.badgeMany.replace('{n}', nDisplay);
+  const oneTpl = (scrambled?.badgeOne && scrambled.badgeOne.length > 0) ? scrambled.badgeOne : t.badgeOne;
+  const manyTpl = (scrambled?.badgeMany && scrambled.badgeMany.length > 0) ? scrambled.badgeMany : t.badgeMany;
+  const label = n === 1 ? oneTpl : manyTpl.replace('{n}', nDisplay);
   const ariaLabel = t.open.replace('{n}', total === null ? '…' : String(total));
 
   return (

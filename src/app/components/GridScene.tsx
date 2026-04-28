@@ -135,11 +135,11 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
       const stepSize = 1 / depthSteps;
       const scrollNorm = (scrollRef.current % stepSize) / stepSize;
 
-      // During dissolution: grid lines fade in at T+1.8s over 1.5s
+      // During dissolution: grid lines fade in at T+0.6s over 0.8s (front-loaded so motion is visible during gather)
       let lineAlpha = 0.3;
       if (dissolving) {
         const dElapsed = (performance.now() - dissolveStartRef.current) / 1000;
-        lineAlpha = dElapsed < 1.8 ? 0 : Math.min(0.3, (dElapsed - 1.8) / 1.5 * 0.3);
+        lineAlpha = dElapsed < 0.6 ? 0 : Math.min(0.3, (dElapsed - 0.6) / 0.8 * 0.3);
       }
       ctx.strokeStyle = `rgba(${fgR}, ${fgG}, ${fgB}, ${lineAlpha})`;
       ctx.lineWidth = 2;
@@ -186,7 +186,7 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
       let glowAlpha = 1;
       if (dissolving) {
         const dE2 = (performance.now() - dissolveStartRef.current) / 1000;
-        glowAlpha = dE2 < 1.8 ? 0 : Math.min(1, (dE2 - 1.8) / 1.5);
+        glowAlpha = dE2 < 0.6 ? 0 : Math.min(1, (dE2 - 0.6) / 0.8);
       }
       if (glowAlpha > 0) {
         const glowSize = Math.max(iW, iH) * 3;
@@ -209,7 +209,7 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
           ctx.fillRect(Math.floor(iL), Math.floor(iT), Math.ceil(iW) + 1, Math.ceil(iH) + 1);
         }
       } else {
-        ctx.fillStyle = `rgba(${fgR}, ${fgG}, ${fgB}, 0.9)`;
+        ctx.fillStyle = `rgba(${fgR}, ${fgG}, ${fgB}, 1)`;
         ctx.fillRect(Math.floor(iL), Math.floor(iT), Math.ceil(iW) + 1, Math.ceil(iH) + 1);
       }
 
@@ -377,9 +377,26 @@ export default function GridScene({ dissolving: dissolvingProp }: GridSceneProps
       }
     };
 
+    let scrollLastTime = performance.now();
     const animate = () => {
       if (!running) return;
-      scrollRef.current -= 0.0004;
+      const sNow = performance.now();
+      const sDt = Math.min((sNow - scrollLastTime) / 1000, 0.05);
+      scrollLastTime = sNow;
+      // Tunnel surge: small, visible boost during the gather. 1x → 2x → 1x over 800ms.
+      let speedMult = 1;
+      if (dissolvingRef.current && dissolveStartRef.current > 0) {
+        const dE = (sNow - dissolveStartRef.current) / 1000;
+        if (dE < 0.15) {
+          speedMult = 1 + (dE / 0.15);             // 1 → 2
+        } else if (dE < 0.5) {
+          speedMult = 2;                            // hold
+        } else if (dE < 0.8) {
+          speedMult = 2 - ((dE - 0.5) / 0.3);      // 2 → 1
+        }
+      }
+      // Delta-time scroll: 0.024/sec ≈ 0.0004/frame at 60fps. Frame drops no longer slow the world.
+      scrollRef.current -= 0.024 * speedMult * sDt;
       draw();
       rafRef.current = requestAnimationFrame(animate);
     };

@@ -29,7 +29,7 @@
   --panel-divider: rgba(0,0,0,0.14);
   --panel-prompt: rgba(0,0,0,0.55);
   --panel-muted: rgba(0,0,0,0.45);
-  --titlebar-bg: var(--background);
+  --titlebar-bg: linear-gradient(180deg, #1f1f1f 0%, #0a0a0a 55%, #000000 100%);
   --titlebar-fg: var(--foreground);
   --titlebar-border: rgba(255,255,255,0.35);
   --flash-color: #ffffff;
@@ -63,11 +63,11 @@
   --panel-divider: rgba(0,0,0,0.18);
   --panel-prompt: rgba(0,0,0,0.6);
   --panel-muted: rgba(0,0,0,0.5);
-  --titlebar-bg: var(--background);
+  --titlebar-bg: linear-gradient(180deg, rgba(255,255,255,0.14) 0%, rgba(255,255,255,0) 55%, rgba(0,0,0,0.18) 100%), var(--background);
   --titlebar-fg: var(--foreground);
 }
 
-/* White theme — minimal, clean */
+/* White theme — minimal, clean. Popups MATCH the theme (light) instead of inverting. */
 [data-theme="white"] {
   --background: #ffffff;
   --foreground: #000000;
@@ -91,15 +91,15 @@
   --nav-hover-bg: #e8e8e8;
   --nav-hover-fg: #000000;
   --nav-hover-fg-contrast: #000000;
-  /* neo-terminal popup tokens — popup uses INVERTED theme (popup bg will be BLACK) */
-  --popup-bg: var(--foreground);
-  --popup-fg: var(--background);
-  --panel-border: rgba(255,255,255,0.22);
-  --panel-divider: rgba(255,255,255,0.14);
-  --panel-prompt: rgba(255,255,255,0.55);
-  --panel-muted: rgba(255,255,255,0.45);
-  --titlebar-bg: var(--background);
-  --titlebar-fg: var(--foreground);
+  /* Popup body is light (matches page); titlebar is dark (visible chrome strip on white page). */
+  --popup-bg: #ffffff;
+  --popup-fg: #000000;
+  --panel-border: rgba(0,0,0,0.22);
+  --panel-divider: rgba(0,0,0,0.14);
+  --panel-prompt: rgba(0,0,0,0.55);
+  --panel-muted: rgba(0,0,0,0.45);
+  --titlebar-bg: linear-gradient(180deg, #2a2a2a 0%, #0a0a0a 55%, #000000 100%);
+  --titlebar-fg: #ffffff;
 }
 
 @theme inline {
@@ -282,11 +282,10 @@ body {
    Works on freshly-mounted elements (animation, not transition). */
 @keyframes frameReveal {
   0%    { opacity: 0; }
-  12%   { opacity: 0.04; }
-  25%   { opacity: 0.12; }
-  40%   { opacity: 0.3; }
-  60%   { opacity: 0.55; }
-  80%   { opacity: 0.8; }
+  10%   { opacity: 0.15; }
+  25%   { opacity: 0.45; }
+  45%   { opacity: 0.75; }
+  70%   { opacity: 0.92; }
   100%  { opacity: 1; }
 }
 

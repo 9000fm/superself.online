@@ -6,12 +6,23 @@ import { translations } from '../translations';
 import { useShoutbox } from '../hooks/useShoutbox';
 import { MAX_BODY, NICK_STORAGE_KEY, formatTimeShort } from '../lib/shoutbox-helpers';
 
+type ScrambleSlice = {
+  chatTitlebar?: string;
+  chatHeader?: string;
+  chatUsers?: string;
+  chatPrompt?: string;
+  chatFooter?: string;
+  chatOnline?: string;
+  close?: string;
+};
+
 type Props = {
   language: Language;
   onClose: () => void;
   onTitlebarDragStart?: (e: React.MouseEvent | React.TouchEvent) => void;
   isDragging?: boolean;
   positionStyle?: React.CSSProperties;
+  scrambled?: ScrambleSlice;
 };
 
 // Chat body — always a light paper regardless of site theme, for readability.
@@ -33,8 +44,10 @@ function ircColor(nick: string): string {
 
 const EMOTICONS = [':)', ':(', ':D', ';)', ':P', '<3'] as const;
 
-export default function Shoutbox({ language, onClose, onTitlebarDragStart, isDragging, positionStyle }: Props) {
+export default function Shoutbox({ language, onClose, onTitlebarDragStart, isDragging, positionStyle, scrambled }: Props) {
   const t = translations[language].shoutbox;
+  const tRoot = translations[language];
+  const sx = (scrambledVal: string | undefined, fallback: string) => (scrambledVal && scrambledVal.length > 0 ? scrambledVal : fallback);
   const hook = useShoutbox(language);
   const { messages, loaded, viewers, mergedUsers, cooldownRemaining, sending, error, ownIds, send, clearError } = hook;
 
@@ -82,21 +95,21 @@ export default function Shoutbox({ language, onClose, onTitlebarDragStart, isDra
         }}
       >
         <span style={{ fontSize: '16px', letterSpacing: '0.02em', whiteSpace: 'nowrap' }}>
-          superself.chat
+          {sx(scrambled?.chatTitlebar, t.titlebar)}
         </span>
         <button
           type="button"
           onClick={onClose}
           onMouseDown={(e) => e.stopPropagation()}
           onTouchStart={(e) => e.stopPropagation()}
-          aria-label="cerrar"
+          aria-label={tRoot.close}
           style={{
             background: 'transparent', border: 'none', color: 'var(--titlebar-fg)',
             fontFamily: 'inherit', fontSize: '15px', cursor: 'pointer',
             padding: '2px 10px', lineHeight: 1.3, touchAction: 'manipulation', whiteSpace: 'nowrap',
           }}
         >
-          [ cerrar ]
+          [ {sx(scrambled?.close, tRoot.close.toLowerCase())} ]
         </button>
       </div>
 
@@ -106,7 +119,7 @@ export default function Shoutbox({ language, onClose, onTitlebarDragStart, isDra
         color: C_FG, fontWeight: 700, letterSpacing: '0.04em',
       }}>
         <span style={{ color: C_DIM, marginRight: 4 }}>##</span>
-        superself chat
+        {sx(scrambled?.chatHeader, t.header)}
       </div>
 
       {/* Channel meta row */}
@@ -116,7 +129,7 @@ export default function Shoutbox({ language, onClose, onTitlebarDragStart, isDra
         display: 'flex', gap: 10, alignItems: 'center',
       }}>
         <span>[ <span style={{ color: C_AMBER }}>#superself</span> ]</span>
-        <span>· {viewers} online</span>
+        <span>· {viewers} {sx(scrambled?.chatOnline, t.onAir)}</span>
         <span style={{ flex: 1 }} />
         <span style={{ color: C_DIM }}>{mergedUsers.length} total</span>
       </div>
@@ -158,7 +171,7 @@ export default function Shoutbox({ language, onClose, onTitlebarDragStart, isDra
             color: C_AMBER, letterSpacing: '0.12em', textTransform: 'uppercase',
             paddingBottom: 3, borderBottom: `1px dashed ${C_DASH}`, fontSize: 11,
           }}>
-            users · {viewers}
+            {sx(scrambled?.chatUsers, t.usersLabel)} · {viewers}
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: 3, maxHeight: 320, overflowY: 'auto' }}>
             {mergedUsers.map((u) => (
@@ -218,7 +231,7 @@ export default function Shoutbox({ language, onClose, onTitlebarDragStart, isDra
           type="text" value={body}
           onChange={(e) => { clearError(); setBody(e.target.value.replace(/[\r\n]+/g, ' ').slice(0, MAX_BODY)); }}
           onKeyDown={onKey}
-          placeholder="type command or message..."
+          placeholder={sx(scrambled?.chatPrompt, t.promptHint)}
           maxLength={MAX_BODY}
           style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', color: C_FG, fontFamily: 'inherit', fontSize: 13, padding: 0 }}
           autoComplete="off"
@@ -234,9 +247,7 @@ export default function Shoutbox({ language, onClose, onTitlebarDragStart, isDra
       }}>
         {error ?? (cooldownRemaining > 0
           ? `-- flood protection · wait ${cooldownRemaining}s --`
-          : t.rateLimited !== undefined
-            ? '-- enter to send · ESC to disconnect --'
-            : '-- enter to send --')}
+          : sx(scrambled?.chatFooter, t.footerHint))}
       </div>
 
       <input type="text" name="website" tabIndex={-1} autoComplete="off" aria-hidden

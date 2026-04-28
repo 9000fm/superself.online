@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
+import { getSupabaseServer } from '@/lib/supabase';
 
 export async function POST(request: Request) {
-  const { email } = await request.json();
+  const { email, lang } = await request.json();
 
   if (!email || typeof email !== 'string') {
     return NextResponse.json({ error: 'failed' }, { status: 400 });
@@ -12,39 +13,22 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'invalid_email' }, { status: 400 });
   }
 
-  const apiKey = process.env.BUTTONDOWN_API_KEY;
-  if (!apiKey) {
-    return NextResponse.json({ error: 'failed' }, { status: 500 });
-  }
-
   try {
-    const res = await fetch('https://api.buttondown.email/v1/subscribers', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Token ${apiKey}`,
-      },
-      body: JSON.stringify({ email_address: email, tags: ['website'] }),
-    });
+    const supa = getSupabaseServer();
+    const { error } = await supa
+      .from('subscribers')
+      .insert({
+        email: email.toLowerCase().trim(),
+        source: 'website',
+        lang: typeof lang === 'string' ? lang : null,
+      });
 
-    if (res.status === 201) {
-      return NextResponse.json({ success: true });
+    // 23505 = unique violation → already subscribed, treat as success
+    if (error && error.code !== '23505') {
+      return NextResponse.json({ error: 'failed' }, { status: 500 });
     }
 
-    if (res.status === 400) {
-      const data = await res.json();
-      const msg = JSON.stringify(data).toLowerCase();
-      if (msg.includes('already')) {
-        return NextResponse.json({ success: true });
-      }
-      return NextResponse.json({ error: 'failed' }, { status: 400 });
-    }
-
-    if (res.status === 429) {
-      return NextResponse.json({ error: 'rate_limited' }, { status: 429 });
-    }
-
-    return NextResponse.json({ error: 'failed' }, { status: res.status });
+    return NextResponse.json({ success: true });
   } catch {
     return NextResponse.json({ error: 'failed' }, { status: 500 });
   }

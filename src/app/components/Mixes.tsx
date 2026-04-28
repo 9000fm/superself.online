@@ -15,6 +15,7 @@ interface MixesProps {
   onDragStart?: (e: React.MouseEvent | React.TouchEvent) => void;
   isDragging?: boolean;
   transitionStyle?: React.CSSProperties;
+  scrambledHeader?: string;
 }
 
 export default function Mixes({
@@ -26,6 +27,7 @@ export default function Mixes({
   onDragStart,
   isDragging = false,
   transitionStyle,
+  scrambledHeader,
 }: MixesProps) {
   const [isMobile, setIsMobile] = useState(false);
   const [loadedIframes, setLoadedIframes] = useState<Record<number, boolean>>({});
@@ -178,7 +180,7 @@ export default function Mixes({
           padding: isMobile ? '16px 14px' : '20px 22px',
           animation: 'fadeIn 0.3s ease-out',
         }}>
-          <div style={{ color: 'var(--panel-prompt)', marginBottom: '14px', letterSpacing: '0.04em' }}>## {t.mixes.replace('> ', '')}</div>
+          <div style={{ color: 'var(--panel-prompt)', marginBottom: '14px', letterSpacing: '0.04em' }}>## {(scrambledHeader && scrambledHeader.length > 0) ? scrambledHeader : t.mixes.replace('> ', '')}</div>
 
           {mixes.map((mix, idx) => (
             <div key={mix.id}>

@@ -40,6 +40,11 @@ export type TranslationKeys = {
   errorPressKey: string;
   shoutbox: {
     title: string;
+    titlebar: string;
+    header: string;
+    usersLabel: string;
+    promptHint: string;
+    footerHint: string;
     onAir: string;
     offline: string;
     connecting: string;
@@ -80,7 +85,7 @@ export const translations: Record<Language, TranslationKeys> = {
     ok: 'Abrir',
     aboutTitle: 'acerca.txt',
     aboutHeader: 'sobre superself',
-    aboutBio: '(2023) es un colectivo y sello de música electrónica nacido en Lima, Perú. Surge como un espacio para compartir sonidos que realmente nos mueven. Aquí publicamos mezclas, lanzamientos propios y música que nos representa.',
+    aboutBio: '(2023) es un sello y colectivo independiente de música electrónica de Lima. Aquí publicamos mezclas, próximos releases y material de la escena electrónica local.',
     aboutCta: 'Déjanos tu mail para recibir novedades.',
     close: 'Cerrar',
     shopTitle: 'tienda.exe',
@@ -107,6 +112,11 @@ export const translations: Record<Language, TranslationKeys> = {
     errorPressKey: 'Presiona cualquier tecla para continuar',
     shoutbox: {
       title: '#chat',
+      titlebar: 'superself.chat',
+      header: 'superself chat',
+      usersLabel: 'usuarios',
+      promptHint: 'escribe un comando o mensaje...',
+      footerHint: '-- enter para enviar · ESC para desconectar --',
       onAir: 'en linea',
       offline: 'sin señal',
       connecting: 'conectando',
@@ -145,7 +155,7 @@ export const translations: Record<Language, TranslationKeys> = {
     ok: 'Open',
     aboutTitle: 'about.txt',
     aboutHeader: 'about superself',
-    aboutBio: '(2023) is an electronic music collective and label born in Lima, Peru. It emerged as a space to share sounds that truly move us. Here we publish mixes, original releases and music that represents us.',
+    aboutBio: '(2023) is an independent electronic music label and collective from Lima. Here we publish mixes, upcoming releases and material from the local electronic scene.',
     aboutCta: 'Leave your email to get updates.',
     close: 'Close',
     shopTitle: 'shop.exe',
@@ -172,6 +182,11 @@ export const translations: Record<Language, TranslationKeys> = {
     errorPressKey: 'Press any key to continue',
     shoutbox: {
       title: '#chat',
+      titlebar: 'superself.chat',
+      header: 'superself chat',
+      usersLabel: 'users',
+      promptHint: 'type command or message...',
+      footerHint: '-- enter to send · ESC to disconnect --',
       onAir: 'online',
       offline: 'no signal',
       connecting: 'connecting',
@@ -210,7 +225,7 @@ export const translations: Record<Language, TranslationKeys> = {
     ok: '開く',
     aboutTitle: '概要.txt',
     aboutHeader: 'superselfについて',
-    aboutBio: '(2023) はリマ、ペルー発の電子音楽コレクティブ＆レーベル。本当に心を動かすサウンドを共有する場として生まれた。ここではミックス、自主リリース、そして自分たちを表す音楽を発信中。',
+    aboutBio: '(2023) はリマの独立系電子音楽レーベル兼コレクティブ。ミックス、近日リリース、地元電子音楽シーンの作品を発信中。',
     aboutCta: 'メールを残して最新情報を受け取ろう。',
     close: '閉じる',
     shopTitle: '店舗.exe',
@@ -237,6 +252,11 @@ export const translations: Record<Language, TranslationKeys> = {
     errorPressKey: '続行するには何かキーを押してください',
     shoutbox: {
       title: '#chat',
+      titlebar: 'superself.chat',
+      header: 'superself チャット',
+      usersLabel: 'ユーザー',
+      promptHint: 'コマンドかメッセージを入力...',
+      footerHint: '-- enter で送信 · ESC で切断 --',
       onAir: 'オンライン',
       offline: '接続なし',
       connecting: '接続中',

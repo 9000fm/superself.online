@@ -342,12 +342,12 @@ export function LogoDissolver({ logoRect, src, trigger, onComplete, onReady }: L
       }
     }
 
-    // Canvas fades out after 2.5s
+    // Canvas fades out after 2.5s — snappy 300ms fade so the tunnel snaps back to brightness fast
     if (elapsed > 2500) {
-      canvas.style.opacity = Math.max(0, 1 - (elapsed - 2500) / 1000).toFixed(2);
+      canvas.style.opacity = Math.max(0, 1 - (elapsed - 2500) / 300).toFixed(2);
     }
 
-    if ((aliveCount > 0 && elapsed < 3500) || elapsed < 2500) {
+    if ((aliveCount > 0 && elapsed < 2800) || elapsed < 2500) {
       animFrameRef.current = requestAnimationFrame(animate);
     } else {
       canvas.style.opacity = '0';

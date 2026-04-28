@@ -16,12 +16,23 @@ interface ScrambledTexts {
   welcomeMsg: string;
   aboutBio: string;
   aboutCta: string;
+  aboutHeader: string;
   shopMsg: string;
   close: string;
   cancel: string;
   ok: string;
   confirm: string;
   subscribePrompt: string;
+  subscribeHeader: string;
+  mixesHeader: string;
+  chatTitlebar: string;
+  chatHeader: string;
+  chatUsers: string;
+  chatPrompt: string;
+  chatFooter: string;
+  chatOnline: string;
+  badgeOne: string;
+  badgeMany: string;
 }
 
 interface UseLanguageScrambleReturn {
@@ -36,12 +47,23 @@ const emptyScrambled: ScrambledTexts = {
   welcomeMsg: '',
   aboutBio: '',
   aboutCta: '',
+  aboutHeader: '',
   shopMsg: '',
   close: '',
   cancel: '',
   ok: '',
   confirm: '',
   subscribePrompt: '',
+  subscribeHeader: '',
+  mixesHeader: '',
+  chatTitlebar: '',
+  chatHeader: '',
+  chatUsers: '',
+  chatPrompt: '',
+  chatFooter: '',
+  chatOnline: '',
+  badgeOne: '',
+  badgeMany: '',
 };
 
 export function useLanguageScramble({
@@ -57,8 +79,6 @@ export function useLanguageScramble({
 
   useEffect(() => {
     if (phase !== 'main') {
-      // Keep prevLangRef in sync when not in main phase so
-      // entering main doesn't trigger a stale scramble
       prevLangRef.current = language;
       return;
     }
@@ -68,8 +88,7 @@ export function useLanguageScramble({
       prevLangRef.current = language;
       isScrambling.current = true;
 
-      // Get new texts
-      const newTexts = {
+      const newTexts: Record<keyof ScrambledTexts, string> = {
         about: t.about,
         shop: t.shop,
         mixes: t.mixes,
@@ -77,37 +96,48 @@ export function useLanguageScramble({
         welcomeMsg: t.welcomeMessage,
         aboutBio: t.aboutBio,
         aboutCta: t.aboutCta,
+        aboutHeader: t.aboutHeader,
         shopMsg: t.shopMessage,
         close: t.close,
         cancel: t.cancel,
         ok: t.ok,
         confirm: t.confirm,
         subscribePrompt: t.subscribePrompt,
+        subscribeHeader: t.subscribe.toLowerCase(),
+        mixesHeader: t.mixes.replace('> ', ''),
+        chatTitlebar: t.shoutbox.titlebar,
+        chatHeader: t.shoutbox.header,
+        chatUsers: t.shoutbox.usersLabel,
+        chatPrompt: t.shoutbox.promptHint,
+        chatFooter: t.shoutbox.footerHint,
+        chatOnline: t.shoutbox.onAir,
+        badgeOne: t.shoutbox.badgeOne,
+        badgeMany: t.shoutbox.badgeMany,
       };
 
       let frame = 0;
       const maxFrames = 18;
 
-      // Per-character random lock frame: each char resolves independently
-      // instead of sweeping left-to-right. Creates an in-place morph effect.
       const charLockFrames: Record<string, number[]> = {};
       for (const key of Object.keys(newTexts) as (keyof typeof newTexts)[]) {
         const textLen = newTexts[key].length;
         charLockFrames[key] = Array.from({ length: textLen }, () =>
-          Math.floor(Math.random() * (maxFrames - 2)) + 2 // lock between frame 2 and maxFrames
+          Math.floor(Math.random() * (maxFrames - 2)) + 2
         );
       }
 
       const scrambleInterval = setInterval(() => {
         frame++;
 
-        // In-place morph: each character resolves at its own random frame
         const scrambleText = (newText: string, lockFrames: number[]) => {
           let result = '';
           for (let i = 0; i < newText.length; i++) {
             if (frame >= lockFrames[i]) {
               result += newText[i];
             } else if (newText[i] === ' ' || newText[i] === '\n') {
+              result += newText[i];
+            } else if (newText[i] === '{' || newText[i] === '}' || newText[i] === '-' || newText[i] === '·') {
+              // preserve template/structural characters so {n} substitution still works
               result += newText[i];
             } else {
               result += scrambleChars[Math.floor(Math.random() * scrambleChars.length)];
@@ -116,24 +146,13 @@ export function useLanguageScramble({
           return result;
         };
 
-        setScrambled({
-          about: scrambleText(newTexts.about, charLockFrames.about),
-          shop: scrambleText(newTexts.shop, charLockFrames.shop),
-          mixes: scrambleText(newTexts.mixes, charLockFrames.mixes),
-          message: scrambleText(newTexts.message, charLockFrames.message),
-          welcomeMsg: scrambleText(newTexts.welcomeMsg, charLockFrames.welcomeMsg),
-          aboutBio: scrambleText(newTexts.aboutBio, charLockFrames.aboutBio),
-          aboutCta: scrambleText(newTexts.aboutCta, charLockFrames.aboutCta),
-          shopMsg: scrambleText(newTexts.shopMsg, charLockFrames.shopMsg),
-          close: scrambleText(newTexts.close, charLockFrames.close),
-          cancel: scrambleText(newTexts.cancel, charLockFrames.cancel),
-          ok: scrambleText(newTexts.ok, charLockFrames.ok),
-          confirm: scrambleText(newTexts.confirm, charLockFrames.confirm),
-          subscribePrompt: scrambleText(newTexts.subscribePrompt, charLockFrames.subscribePrompt),
-        });
+        const next: ScrambledTexts = { ...emptyScrambled };
+        for (const key of Object.keys(newTexts) as (keyof ScrambledTexts)[]) {
+          next[key] = scrambleText(newTexts[key], charLockFrames[key]);
+        }
+        setScrambled(next);
 
         if (frame >= maxFrames) {
-          // Clear scrambled states to show actual translations
           setScrambled(emptyScrambled);
           clearInterval(scrambleInterval);
           isScrambling.current = false;

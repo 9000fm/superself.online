@@ -48,6 +48,15 @@ export default function Shop({
   const prevLangRef = useRef<Language>(language);
   const [scrambledTitle, setScrambledTitle] = useState('');
   const [scrambledWA, setScrambledWA] = useState('');
+  const [scrambledCatalog, setScrambledCatalog] = useState('');
+  const [scrambledSelectHint, setScrambledSelectHint] = useState('');
+  const [scrambledSizeLabel, setScrambledSizeLabel] = useState('');
+  const [scrambledPriceLabel, setScrambledPriceLabel] = useState('');
+  const [scrambledNames, setScrambledNames] = useState<string[]>([]);
+  const [scrambledStatic, setScrambledStatic] = useState<{
+    back: string; id: string; item: string; sizesCol: string; sizeRow: string;
+    tapHint: string; navHint: string; oversized: string; cotton: string;
+  }>({ back: '', id: '', item: '', sizesCol: '', sizeRow: '', tapHint: '', navHint: '', oversized: '', cotton: '' });
 
   const openDetail = useCallback((index: number) => {
     setSelectedProduct(index);
@@ -68,16 +77,22 @@ export default function Shop({
       prevLangRef.current = language;
       const newTitle = t.shopTitle;
       const newWA = t.whatsappButton;
+      const newCatalog = t.catalogLabel;
+      const newHint = t.selectHint;
+      const newSize = t.selectSize;
+      const newPrice = t.priceLabel;
+      const newNames = products.map((p) => getProductName(p, language));
       let frame = 0;
-      const maxFrames = 8;
+      const maxFrames = 10;
       const baseChars = SCRAMBLE_CHARS.base;
       const jpChars = SCRAMBLE_CHARS.japanese;
       const scrambleText = (text: string, locked: number) => {
         let result = '';
         for (let i = 0; i < text.length; i++) {
           if (i < locked) { result += text[i]; }
-          else if (text[i] === ' ') { result += ' '; }
-          else {
+          else if (text[i] === ' ' || text[i] === '\n' || text[i] === '/' || text[i] === '·' || text[i] === '[' || text[i] === ']') {
+            result += text[i];
+          } else {
             const code = text.charCodeAt(i);
             const isWide = code > 0x7F;
             const chars = isWide ? jpChars : baseChars;
@@ -86,17 +101,56 @@ export default function Shop({
         }
         return result;
       };
+      const advance = (s: string) => scrambleText(s, Math.floor((frame / maxFrames) * s.length));
+      const STATIC_BACK = '< back';
+      const STATIC_ID = 'ID';
+      const STATIC_ITEM = 'ITEM';
+      const STATIC_SIZES_COL = 'SIZES';
+      const STATIC_SIZE_ROW = 'S M L XL';
+      const STATIC_TAP = 'tap';
+      const STATIC_NAV = '↑ ↓ enter';
+      const STATIC_OVERSIZED = 'OVERSIZED';
+      const STATIC_COTTON = '100% cotton';
       const interval = setInterval(() => {
         frame++;
-        setScrambledTitle(scrambleText(newTitle, Math.floor((frame / maxFrames) * newTitle.length)));
-        setScrambledWA(scrambleText(newWA, Math.floor((frame / maxFrames) * newWA.length)));
+        setScrambledTitle(advance(newTitle));
+        setScrambledWA(advance(newWA));
+        setScrambledCatalog(advance(newCatalog));
+        setScrambledSelectHint(advance(newHint));
+        setScrambledSizeLabel(advance(newSize));
+        setScrambledPriceLabel(advance(newPrice));
+        setScrambledNames(newNames.map(advance));
+        setScrambledStatic({
+          back: advance(STATIC_BACK),
+          id: advance(STATIC_ID),
+          item: advance(STATIC_ITEM),
+          sizesCol: advance(STATIC_SIZES_COL),
+          sizeRow: advance(STATIC_SIZE_ROW),
+          tapHint: advance(STATIC_TAP),
+          navHint: advance(STATIC_NAV),
+          oversized: advance(STATIC_OVERSIZED),
+          cotton: advance(STATIC_COTTON),
+        });
         if (frame >= maxFrames) {
           clearInterval(interval);
           setScrambledTitle('');
           setScrambledWA('');
+          setScrambledCatalog('');
+          setScrambledSelectHint('');
+          setScrambledSizeLabel('');
+          setScrambledPriceLabel('');
+          setScrambledNames([]);
+          setScrambledStatic({ back: '', id: '', item: '', sizesCol: '', sizeRow: '', tapHint: '', navHint: '', oversized: '', cotton: '' });
         }
       }, 40);
-      return () => { clearInterval(interval); setScrambledTitle(''); setScrambledWA(''); };
+      return () => {
+        clearInterval(interval);
+        setScrambledTitle(''); setScrambledWA('');
+        setScrambledCatalog(''); setScrambledSelectHint('');
+        setScrambledSizeLabel(''); setScrambledPriceLabel('');
+        setScrambledNames([]);
+        setScrambledStatic({ back: '', id: '', item: '', sizesCol: '', sizeRow: '', tapHint: '', navHint: '', oversized: '', cotton: '' });
+      };
     }
   }, [language, t]);
 
@@ -215,7 +269,7 @@ export default function Shop({
                   whiteSpace: 'nowrap',
                 }}
               >
-                [ &lt; back ]
+                [ {(scrambledStatic.back && scrambledStatic.back.length > 0) ? scrambledStatic.back : '< back'} ]
               </button>
             )}
             <button
@@ -255,22 +309,26 @@ export default function Shop({
               language={language}
               currency={t.currency}
               isMobile={isMobile}
-              catalogLabel={t.catalogLabel}
-              selectHint={t.selectHint}
+              catalogLabel={scrambledCatalog || t.catalogLabel}
+              selectHint={scrambledSelectHint || t.selectHint}
+              scrambledNames={scrambledNames}
+              scrambledStatic={scrambledStatic}
             />
           ) : (
             <DetailView
               product={product}
-              prodName={prodName}
+              prodName={(scrambledNames[selectedProduct] && scrambledNames[selectedProduct].length > 0) ? scrambledNames[selectedProduct] : prodName}
               sizes={t.sizes as unknown as string[]}
               selectedSize={selectedSize}
               setSelectedSize={setSelectedSize}
               onWhatsApp={handleWhatsAppClick}
               waLabel={scrambledWA || t.whatsappButton}
-              sizeLabel={t.selectSize}
-              priceLabel={t.priceLabel}
+              sizeLabel={scrambledSizeLabel || t.selectSize}
+              priceLabel={scrambledPriceLabel || t.priceLabel}
               currency={t.currency}
               isMobile={isMobile}
+              scrambledOversized={scrambledStatic.oversized}
+              scrambledCotton={scrambledStatic.cotton}
             />
           )}
         </div>
@@ -288,6 +346,8 @@ function CatalogView({
   isMobile,
   catalogLabel,
   selectHint,
+  scrambledNames,
+  scrambledStatic,
 }: {
   focusedIndex: number;
   setFocusedIndex: (i: number) => void;
@@ -297,7 +357,10 @@ function CatalogView({
   isMobile: boolean;
   catalogLabel: string;
   selectHint: string;
+  scrambledNames: string[];
+  scrambledStatic: { back: string; id: string; item: string; sizesCol: string; sizeRow: string; tapHint: string; navHint: string };
 }) {
+  const sx = (val: string, fb: string) => (val && val.length > 0 ? val : fb);
   return (
     <div>
       <div style={{ color: 'var(--panel-prompt)', marginBottom: '12px', letterSpacing: '0.04em' }}>## {catalogLabel}</div>
@@ -310,9 +373,9 @@ function CatalogView({
         fontSize: '0.9em',
         padding: '0 4px 6px',
       }}>
-        <span>ID</span>
-        <span>ITEM</span>
-        {!isMobile && <span>SIZES</span>}
+        <span>{sx(scrambledStatic.id, 'ID')}</span>
+        <span>{sx(scrambledStatic.item, 'ITEM')}</span>
+        {!isMobile && <span>{sx(scrambledStatic.sizesCol, 'SIZES')}</span>}
         <span style={{ textAlign: 'right' }}>$</span>
       </div>
       {/* Divider */}
@@ -326,7 +389,8 @@ function CatalogView({
         {products.map((product, idx) => {
           const isFocused = idx === focusedIndex;
           const id = String(product.id).padStart(3, '0');
-          const name = getProductName(product, language);
+          const liveName = getProductName(product, language);
+          const name = (scrambledNames[idx] && scrambledNames[idx].length > 0) ? scrambledNames[idx] : liveName;
           return (
             <button
               key={product.id}
@@ -367,7 +431,7 @@ function CatalogView({
                 whiteSpace: 'nowrap',
               }}>{name}</span>
               {!isMobile && (
-                <span style={{ opacity: 0.75, fontSize: '0.9em' }}>S M L XL</span>
+                <span style={{ opacity: 0.75, fontSize: '0.9em' }}>{sx(scrambledStatic.sizeRow, 'S M L XL')}</span>
               )}
               <span style={{ textAlign: 'right' }}>{currency}{product.price}</span>
             </button>
@@ -380,7 +444,7 @@ function CatalogView({
         color: 'var(--panel-muted)',
         fontSize: '0.9em',
       }}>
-        &gt; {selectHint} {isMobile ? '[ tap ]' : '[ \u2191 \u2193 enter ]'}
+        &gt; {selectHint} {isMobile ? `[ ${sx(scrambledStatic.tapHint, 'tap')} ]` : `[ ${sx(scrambledStatic.navHint, '\u2191 \u2193 enter')} ]`}
       </div>
     </div>
   );
@@ -398,6 +462,8 @@ function DetailView({
   priceLabel,
   currency,
   isMobile,
+  scrambledOversized,
+  scrambledCotton,
 }: {
   product: typeof products[number];
   prodName: string;
@@ -410,6 +476,8 @@ function DetailView({
   priceLabel: string;
   currency: string;
   isMobile: boolean;
+  scrambledOversized: string;
+  scrambledCotton: string;
 }) {
   return (
     <div style={{
@@ -467,7 +535,7 @@ function DetailView({
           {/* Left: description + sizes */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ color: 'var(--panel-muted)', fontSize: '0.9em', lineHeight: 1.5 }}>
-              OVERSIZED<br />100% cotton
+              {(scrambledOversized && scrambledOversized.length > 0) ? scrambledOversized : 'OVERSIZED'}<br />{(scrambledCotton && scrambledCotton.length > 0) ? scrambledCotton : '100% cotton'}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
               <span style={{ color: 'var(--panel-prompt)' }}>▸</span>
